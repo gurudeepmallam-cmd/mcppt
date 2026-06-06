@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .checks import ScanState
 
-SEV_ICON = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🔵"}
+SEV_ICON = {"CRITICAL": "[CRIT]", "HIGH": "[HIGH]", "MEDIUM": "[MED]", "LOW": "[LOW]"}
 
 
 def save_json(state: ScanState, path: str) -> Path:

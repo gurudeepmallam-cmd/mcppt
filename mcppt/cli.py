@@ -157,7 +157,19 @@ def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--proxy",     default=None,   help="Proxy URL  e.g. http://127.0.0.1:8080")
 
 
+def _ensure_utf8() -> None:
+    """Reconfigure stdout/stderr to UTF-8 on Windows so Rich box-drawing chars encode."""
+    import sys, io
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
 def main() -> None:
+    _ensure_utf8()
     parser = argparse.ArgumentParser(
         prog="mcppt",
         description="MCPPT v2.0 — MCP Pentest Tool  |  16 automated security checks",

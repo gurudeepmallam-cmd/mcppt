@@ -45,11 +45,11 @@ class ScanState:
 
     def finding(self, check: str, severity: str, title: str, detail: str) -> None:
         icon = {
-            "CRITICAL": "[bold red][CRIT][/]",
-            "HIGH": "[bold yellow][HIGH][/]",
-            "MEDIUM": "[yellow][MED ][/]",
-            "LOW": "[cyan][LOW ][/]",
-        }.get(severity, "[?   ]")
+            "CRITICAL": "[bold red]CRIT[/]",
+            "HIGH": "[bold yellow]HIGH[/]",
+            "MEDIUM": "[yellow]MED [/]",
+            "LOW": "[cyan]LOW [/]",
+        }.get(severity, "?   ")
         with self._lock:
             self.findings.append(Finding(check, severity, title, detail))
             self.log_lines.append(f"  {icon} {title}")

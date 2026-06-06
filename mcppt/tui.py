@@ -17,7 +17,9 @@ from rich.text import Text
 
 from .checks import ScanState
 
-console = Console()
+# force_terminal + legacy_windows=False: use ANSI escape codes, not the legacy
+# Win32 console API that is limited to CP1252 and can't render box-drawing chars.
+console = Console(highlight=False, legacy_windows=False, force_terminal=True)
 
 SEV_STYLE = {
     "CRITICAL": "bold red",
@@ -25,11 +27,12 @@ SEV_STYLE = {
     "MEDIUM":   "yellow",
     "LOW":      "cyan",
 }
+# ASCII-safe severity indicators (no emoji — works on all terminals/encodings)
 SEV_ICON = {
-    "CRITICAL": "🔴",
-    "HIGH":     "🟠",
-    "MEDIUM":   "🟡",
-    "LOW":      "🔵",
+    "CRITICAL": "[CRIT]",
+    "HIGH":     "[HIGH]",
+    "MEDIUM":   "[MED] ",
+    "LOW":      "[LOW] ",
 }
 
 _scan_start: float = 0.0
@@ -41,10 +44,10 @@ def _header(url: str, token: Optional[str]) -> Panel:
     auth = "[green]token provided[/]" if token else "[yellow]unauthenticated[/]"
     t = Text()
     t.append("MCPPT", style="bold red")
-    t.append("  v2.0  ──  MCP Pentest Tool\n", style="white")
+    t.append("  v2.0  --  MCP Pentest Tool\n", style="white")
     t.append("Target  ", style="dim")
     t.append(url, style="bold cyan")
-    t.append(f"   ·   Auth  {auth}")
+    t.append(f"   |   Auth  {auth}")
     return Panel(t, style="red", padding=(0, 2))
 
 
