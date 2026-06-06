@@ -15,17 +15,21 @@ CHECKS = [
 
 EPILOG = """
 commands:
-  scan    Run all/selected security checks with live TUI
-  list    Enumerate tools and parameter schemas
-  call    Call a single tool with custom JSON args
+  scan        Run all/selected security checks with live TUI
+  list        Enumerate tools and parameter schemas
+  call        Call a single tool with custom JSON args
+  shell       Launch interactive REPL (default when run with no args)
+  serve-mcp   Expose MCPTROTTER itself as an MCP server
 
 examples:
+  mcppt                                               <- interactive shell
   mcppt scan --url https://target.com/mcp --token eyJ...
   mcppt scan --url https://target.com/mcp --token t1 --token2 t2 --checks idor,scope
   mcppt scan --url https://target.com/mcp --no-verify --output report.md
   mcppt scan --url https://target.com/mcp --proxy http://127.0.0.1:8080 --checks all
   mcppt list --url https://target.com/mcp --token eyJ...
   mcppt call --url https://target.com/mcp --token eyJ... --tool get_user --args '{"id":1}'
+  mcppt serve-mcp --port 8899
 """
 
 
@@ -168,11 +172,21 @@ def _ensure_utf8() -> None:
             pass
 
 
+def cmd_shell(_args=None) -> None:
+    from .shell import launch_shell
+    launch_shell()
+
+
+def cmd_serve_mcp(args: argparse.Namespace) -> None:
+    from .server import serve
+    serve(port=args.port)
+
+
 def main() -> None:
     _ensure_utf8()
     parser = argparse.ArgumentParser(
         prog="mcppt",
-        description="MCPPT v2.0 — MCP Pentest Tool  |  16 automated security checks",
+        description="MCPTROTTER v2.1 — MCP Pentest Tool  |  16 automated security checks",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=EPILOG,
     )
@@ -197,12 +211,27 @@ def main() -> None:
     p_call.add_argument("--tool", required=True, help="Tool name to call")
     p_call.add_argument("--args", default="{}", help="JSON arguments  (default: {})")
 
+    # shell
+    sub.add_parser("shell", help="Launch interactive REPL (gobuster/ffuf-style)")
+
+    # serve-mcp
+    p_serve = sub.add_parser("serve-mcp", help="Expose MCPTROTTER as an MCP server")
+    p_serve.add_argument("--port", type=int, default=8899, help="Port to listen on (default: 8899)")
+
     args = parser.parse_args()
+
+    # default: no subcommand → launch interactive shell
     if not args.command:
-        parser.print_help()
+        cmd_shell()
         return
 
-    dispatch = {"scan": cmd_scan, "list": cmd_list, "call": cmd_call}
+    dispatch = {
+        "scan":      cmd_scan,
+        "list":      cmd_list,
+        "call":      cmd_call,
+        "shell":     cmd_shell,
+        "serve-mcp": cmd_serve_mcp,
+    }
     dispatch[args.command](args)
 
 

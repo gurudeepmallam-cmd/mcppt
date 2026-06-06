@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcppt"
-version = "2.0.0"
-description = "MCPPT — MCP Pentest Tool: 16 automated security checks for MCP servers"
+version = "2.1.0"
+description = "MCPTROTTER — MCP Pentest Tool: 16 automated security checks for MCP servers"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -27,6 +27,16 @@ classifiers = [
 ]
 dependencies = [
     "rich>=13.0",
+    "flask>=3.0",
+]
+
+[project.optional-dependencies]
+ai = [
+    "anthropic>=0.25",
+    "openai>=1.0",
+]
+ui = [
+    "streamlit>=1.30",
 ]
 
 [project.scripts]
