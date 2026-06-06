@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcppt"
+version = "2.0.0"
+description = "MCPPT — MCP Pentest Tool: 16 automated security checks for MCP servers"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Gurudeep Mallam", email = "gurudeep.mallam@gmail.com" },
+]
+keywords = ["mcp", "security", "pentest", "llm", "ai-security", "red-team"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Internet :: WWW/HTTP",
+]
+dependencies = [
+    "rich>=13.0",
+]
+
+[project.scripts]
+mcppt = "mcppt.cli:main"
+
+[project.urls]
+Homepage   = "https://github.com/gurudeepmallam-cmd/mcppt"
+Repository = "https://github.com/gurudeepmallam-cmd/mcppt"
+Issues     = "https://github.com/gurudeepmallam-cmd/mcppt/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mcppt"]
