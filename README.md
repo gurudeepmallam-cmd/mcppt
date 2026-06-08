@@ -194,30 +194,6 @@ The key is used only for that session — it is never stored to disk.
 
 ---
 
-## Demo server
-
-A deliberately vulnerable MCP server is included for testing and development:
-
-```bash
-# Terminal 1 — start the demo server
-cd mcppt_tool
-python vuln_server.py
-# Listening on http://127.0.0.1:8888/mcp
-
-# Terminal 2 — scan it
-python -m mcppt.cli scan \
-  --url http://127.0.0.1:8888/mcp \
-  --token valid-token-abc123 \
-  --token2 other-token-xyz789
-
-# Or run the automated smoke test (verifies all 28 checks fire)
-python smoke_test.py
-```
-
-The demo server simulates all 28 weaknesses safely — no real command execution, no real file reads, no real URL fetches. Expected smoke test result: 17/17 assertions pass, 70+ findings across all severity levels.
-
----
-
 ## Burp Suite integration
 
 Route all MCPTROTTER traffic through Burp Suite for manual review, Repeater iteration, or Intruder fuzzing:
@@ -309,13 +285,46 @@ ruff check mcppt/
 
 ---
 
+## Try it now — no target needed
+
+MCPTROTTER ships with a fully vulnerable demo MCP server (`vuln_server.py`) that simulates all 28 weaknesses safely — no real command execution, no real file reads, no cloud calls. It's designed specifically so you can run a complete scan, see every check fire, and understand exactly what the tool does before pointing it at a real target.
+
+```bash
+# Terminal 1 — start the vulnerable demo server
+cd mcppt_tool
+python vuln_server.py
+# Listening on http://127.0.0.1:8888/mcp
+
+# Terminal 2 — scan it
+python -m mcppt.cli scan \
+  --url http://127.0.0.1:8888/mcp \
+  --token valid-token-abc123 \
+  --token2 other-token-xyz789
+
+# Or run the automated smoke test — starts the server, scans, asserts all 28 checks fire
+python smoke_test.py
+# Expected: 17/17 assertions pass, 70+ findings across all severity levels
+```
+
+The demo server intentionally fails every single check — CORS wildcard, auth bypass, stored injection, command injection, rug pull, tool poisoning with hidden Unicode, weak session IDs, replay attacks, SSRF, path traversal, secret leaks, and more. It's the fastest way to see the full capability of the tool end to end.
+
+---
+
 ## Part of Bugtrotter
 
-MCPTROTTER is a public tool from the **Bugtrotter** red team and application security toolkit — a private platform purpose-built for AI-native attack surfaces, enterprise MCP deployments, and modern AppSec workflows.
+MCPTROTTER was built by **[Gurudeep Mallam](https://github.com/gurudeepmallam-cmd)** as part of **Bugtrotter** — a private red team and application security platform built from the ground up for AI-native attack surfaces.
 
-Bugtrotter covers the full engagement lifecycle: recon, exploitation, reporting, and remediation tracking — with purpose-built tooling for MCP, LLM agents, and web application security.
+Bugtrotter is not a generic security scanner rebranded for AI. It was purpose-built for the attack surface that emerged when AI agents started connecting to real systems via protocols like MCP. It covers:
 
-If you are running an MCP deployment and want it assessed, or want Bugtrotter's full toolkit deployed against your specific environment, reach out.
+- **AI agent red teaming** — prompt injection chains, tool poisoning, context manipulation, agent hijacking across multi-agent pipelines
+- **Active Directory attack pipelines** — full kill chain from external foothold to domain admin, automated via Claude Code and MCP tooling. [Read how it works →](https://medium.com/@gurudeep.mallam/i-built-an-ai-driven-active-directory-attack-pipeline-using-claude-code-mcp-heres-how-it-works-b3b1f8841770)
+- **MCP security assessments** — MCPTROTTER is the public-facing scanner; the full Bugtrotter toolkit adds manual exploitation scripts, chained attack playbooks, remediation tracking, and client-ready reporting
+- **Web application security** — API testing, IDOR, auth bypass, business logic flaws across enterprise deployments
+- **LLM integration security** — testing AI-powered applications end to end, from the model layer down to the MCP tools it calls
+
+**MCPTROTTER + Bugtrotter = significantly more coverage.** The public scanner automates the 28-check baseline in two minutes. Bugtrotter layers on top with manual chaining of findings, custom exploitation payloads tailored to the specific MCP implementation, cross-tool attack paths (e.g. SSRF → credential theft → lateral movement through connected tools), and a full engagement report. What MCPTROTTER catches in automated checks, Bugtrotter turns into a demonstrated exploit chain.
+
+If you are running an MCP deployment and want it fully assessed, or want the complete Bugtrotter toolkit applied to your environment, reach out directly.
 
 ---
 
