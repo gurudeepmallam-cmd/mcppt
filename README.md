@@ -1,34 +1,40 @@
 # MCPTROTTER — MCP Pentest Tool
 
 <p align="center">
-  <img src="docs/mcptrotter.jpeg" alt="MCPTROTTER" width="420"/>
+  <b>28 automated security checks for any MCP server.<br>Pure Python. No AI key needed. No Docker. No Kali.</b>
 </p>
 
 <p align="center">
-  28 automated security checks for any MCP server. Pure Python, no AI required.
+  <img src="https://img.shields.io/badge/python-3.10%2B-blue"/>
+  <img src="https://img.shields.io/badge/checks-28-red"/>
+  <img src="https://img.shields.io/badge/license-MIT-green"/>
+  <img src="https://img.shields.io/badge/part%20of-Bugtrotter-black"/>
 </p>
 
 <p align="center">
-  <img src="https://github.com/gurudeepmallam-cmd/mcppt/actions/workflows/ci.yml/badge.svg" alt="CI"/>
-  <img src="https://img.shields.io/pypi/pyversions/mcppt" alt="Python"/>
-  <img src="https://img.shields.io/github/license/gurudeepmallam-cmd/mcppt" alt="License"/>
+  <b>by <a href="https://github.com/gurudeepmallam-cmd">Gurudeep Mallam</a> &nbsp;·&nbsp;
+  <a href="https://in.linkedin.com/in/mallam-gurudeep-7734941aa">LinkedIn</a></b>
 </p>
 
 ---
 
-## What it is
+## What it does
 
-MCPTROTTER is a command-line security scanner for [MCP (Model Context Protocol)](https://modelcontextprotocol.io) servers. It runs 28 automated checks across authentication, injection, SSRF, replay, session entropy, transport misconfiguration, tool poisoning, rug pulls, and more — covering the full OWASP MCP Top 10.
+MCPTROTTER is a command-line security scanner for **MCP (Model Context Protocol)** servers. Point it at any MCP endpoint and it runs 28 automated checks across:
 
-It works against any MCP server using Streamable HTTP transport. No Kali Linux, no Docker, no external API key needed for the core scan.
+- Authentication bypass and token abuse
+- Prompt injection (direct, stored, poison-all fields)
+- SSRF, command injection, path traversal
+- Session entropy and replay attacks
+- Tenant isolation and IDOR
+- Tool poisoning and rug pulls
+- Transport misconfigurations and secret leaks
 
-For the full risk catalog — CVSS scores, attack scenarios, proof-of-concept payloads, and remediation for all 28 checks — see [OPERATOR_GUIDE.md](OPERATOR_GUIDE.md).
+Works against any MCP server using Streamable HTTP transport (POST + SSE response). Integrates with Burp Suite for manual follow-up. Exports pentest-ready Markdown reports.
 
 ---
 
 ## Install
-
-### From source (recommended)
 
 ```bash
 git clone https://github.com/gurudeepmallam-cmd/mcppt
@@ -36,318 +42,360 @@ cd mcppt/mcppt_tool
 pip install -e .
 ```
 
-### Or install dependencies directly
-
-```bash
-pip install rich flask
-```
-
-The scanner itself (`mcppt/core.py`, `mcppt/checks.py`) uses only the Python standard library. `rich` is for the interactive shell UI. `flask` is only needed for the local demo server.
-
-Requires Python 3.10+.
+Requires Python 3.10+. Core scanner uses only stdlib — `urllib`, `ssl`, `json`. `rich` is for the TUI shell only.
 
 ---
 
-## Quick start
+## Quick start — try it right now (no target needed)
 
-### Interactive shell
+MCPTROTTER ships with a deliberately vulnerable demo server that fires every check.
 
+**Terminal 1 — start the demo server:**
 ```bash
 cd mcppt_tool
-python -m mcppt.cli
+python test_server.py
+```
+```
+=======================================================
+  Vulnerable MCP Test Server
+  URL:   http://127.0.0.1:8888/mcp
+  Token: valid-token-abc123
+=======================================================
 ```
 
-Inside the shell:
-
-```
-target https://your-mcp-server.com/mcp     set target URL
-token  eyJ...                              bearer token (if required)
-token2 eyJ...                              second token for IDOR/tenant checks
-noverify                                   skip SSL (self-signed certs)
-proxy  http://127.0.0.1:8080               route through Burp Suite
-status                                     confirm config before scanning
-list                                       enumerate tools the server exposes
-scan                                       run all 28 checks
-findings                                   colour-coded results table
-report pentest_report.md                   export full markdown report
-```
-
-### One-liner (CI/CD or scripted scans)
-
+**Terminal 2 — open the interactive shell:**
 ```bash
-python -m mcppt.cli scan \
-  --url https://your-mcp-server.com/mcp \
-  --token eyJ... \
-  --no-verify \
-  --output report.md
+mcppt
 ```
 
-### Targeted check groups
+You'll see:
+```
+  __  __   ___  ___  _____ ____   ___ _____ _____ ___ ___
+ |  \/  | / __|| _ \|_   _|  _ \ / _ \_   _|_   _| __| _ \
+ | |\/| || (__|  _/ | | |   /  | (_) || |   | | | _||   /
+ |_|  |_| \___||_|  |_| |_|_\  \___/ |_|   |_| |___|_|_\
 
-```bash
-# Authentication and access control only
-python -m mcppt.cli scan --url ... --checks auth,scope,idor,jwt_audit
+  MCP Pentest Tool  v2.1  --  16 automated security checks
 
-# Injection surface
-python -m mcppt.cli scan --url ... --checks injection,stored,poison_all,tool_poisoning,cmd_injection
+  by Gurudeep Mallam
+  github  : https://github.com/gurudeepmallam-cmd
+  linkedin: https://in.linkedin.com/in/mallam-gurudeep-7734941aa
 
-# Infrastructure
-python -m mcppt.cli scan --url ... --checks headers,error_disclosure,ssrf,path_traversal,secret_scan,oauth_discovery
+  type 'help' for commands, 'exit' to quit
 
-# Protocol-level
-python -m mcppt.cli scan --url ... --checks replay,session,rate,rug_pull,tool_shadowing,resources,sampling
+mcppt>
 ```
 
-### Manual tool call
-
-```bash
-python -m mcppt.cli call \
-  --url https://your-mcp-server.com/mcp \
-  --token eyJ... \
-  --tool get_user \
-  --args '{"id": 1}'
+**Paste these commands one by one:**
+```
+target http://127.0.0.1:8888/mcp
+token  valid-token-abc123
+status
+scan
+findings
+report demo.md
 ```
 
 ---
 
-## All 28 Checks
+## Expected output — demo server scan
 
-| # | Check | Max Severity | What it tests |
-|---|-------|-------------|---------------|
+Running `scan` with token set produces this (6.7 seconds):
+
+```
+Duration: 6.7s   Findings: 6 CRITICAL  6 HIGH  13 MEDIUM  3 LOW
+```
+
+| Severity | Check | Finding |
+|---|---|---|
+| CRITICAL | `auth` | Auth bypass on `get_notes` — no token required |
+| CRITICAL | `auth` | Auth bypass on `get_notes` — invalid token accepted |
+| CRITICAL | `publish` | `publish_report` callable without confirmation gate |
+| CRITICAL | `stored` | Stored injection confirmed: `save_note` → `get_notes` unescaped |
+| CRITICAL | `replay` | Replay confirmed on WRITE tool `publish_report` |
+| CRITICAL | `poison_all` | Injection marker reflected in `result.content[0].text` |
+| HIGH | `injection` | Prompt injection reflected in `publish_report.title` |
+| HIGH | `replay` | Replay confirmed on `get_notes` |
+| HIGH | `session` | Short session ID (3 chars): `108` |
+| HIGH | `session` | Non-UUID/non-hex session format: `108` |
+| HIGH | `session` | Near-sequential IDs (diffs=[1,7,1,1]) — low entropy |
+| MEDIUM | `enum` | `tools/list` accessible without Authorization header |
+| MEDIUM | `schema` | Multiple fields accept wrong types (string/int/null bypass) |
+| MEDIUM | `context_overflow` | 10,000-char payload accepted without truncation |
+| LOW | `rate` | No rate limiting — 30/30 requests in 1.5s |
+| LOW | `headers` | Missing: X-Content-Type-Options, CSP, X-Frame-Options |
+| LOW | `headers` | Server header leaks: `Werkzeug/3.1.8 Python/3.13.5` |
+
+> **Without a token set**, only the rate limiting check fires. Always run `token <value>` before `scan`.
+
+---
+
+## All commands (interactive shell)
+
+```
+Setup
+  target  <url>          Set MCP server URL
+  token   <bearer>       Set primary auth token
+  token2  <bearer>       Set second user token (IDOR / scope / tenant checks)
+  noverify               Toggle SSL verification skip (needed for self-signed certs)
+  proxy   <url|off>      Set Burp proxy:  proxy http://127.0.0.1:8080
+  status                 Show current config before scanning
+
+Enumerate
+  list                   List all tools the server exposes (names, params, descriptions)
+  call <tool> [json]     Manually call any tool
+                           call get_notes
+                           call get_user {"id": 1}
+                           call save_note {"text": "hello"}
+
+Scan
+  scan                   Run all checks
+  scan auth ssrf idor    Run specific checks only
+  scan stored injection  Mix and match any check names
+
+Results
+  findings               Colour-coded findings table
+  clear                  Clear findings from last scan
+  report out.md          Export Markdown report
+  report out.json        Export JSON report
+
+AI analysis (optional — paste your key first)
+  ai claude  sk-ant-...  Configure Claude for analysis
+  ai openai  sk-...      Configure OpenAI GPT-4o
+  analyze                Attack narrative + remediation priority from findings
+
+Shell
+  help                   Full command reference
+  exit                   Quit
+```
+
+---
+
+## One-liner (non-interactive / CI)
+
+```bash
+# Full scan, save Markdown report
+mcppt scan --url https://target.com/mcp --token eyJ... --output report.md
+
+# With second token (enables IDOR, scope, tenant checks)
+mcppt scan --url https://target.com/mcp --token t1 --token2 t2 --output report.md
+
+# Through Burp proxy, skip SSL
+mcppt scan --url https://target.com/mcp --token eyJ... --proxy http://127.0.0.1:8080 --no-verify
+
+# Targeted checks only
+mcppt scan --url https://target.com/mcp --token eyJ... --checks auth,ssrf,stored,idor
+```
+
+---
+
+## Burp Suite integration — step by step
+
+Route every MCPTROTTER request through Burp to inspect, replay, and fuzz manually.
+
+### Step 1 — Set up Burp listener
+
+Burp Suite → **Proxy → Proxy Settings**
+
+Confirm the listener is `127.0.0.1:8080` (it is by default). No changes needed.
+
+### Step 2 — Run scan through proxy
+
+Inside the shell:
+```
+proxy    http://127.0.0.1:8080
+noverify
+scan
+```
+
+Or as a one-liner:
+```bash
+mcppt scan --url https://target.com/mcp --token eyJ... --proxy http://127.0.0.1:8080 --no-verify
+```
+
+`noverify` / `--no-verify` is required because Burp intercepts TLS with its own certificate.
+
+### Step 3 — See requests in HTTP History
+
+Burp → **Proxy → HTTP History**
+
+Every MCP tool call appears as a `POST /mcp` request. Each row shows the JSON-RPC method and the response. You'll see one row per check — `initialize`, `tools/list`, `tools/call` for each tool tested.
+
+Click any row to see the full request and response body:
+
+```
+POST /mcp HTTP/1.1
+Host: target.com
+Authorization: Bearer eyJ...
+Content-Type: application/json
+
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_notes","arguments":{}}}
+```
+
+### Step 4 — Send to Repeater for manual testing
+
+In HTTP History, right-click any request → **Send to Repeater** (or `Ctrl+R`).
+
+Switch to the **Repeater** tab. You'll see the exact request MCPTROTTER sent.
+
+**To keep the connection alive and replay successfully:**
+
+1. Check the **Host** field matches your target (e.g. `127.0.0.1` port `8888` for demo server, or your real target host/port)
+2. If targeting HTTP (not HTTPS), make sure the **lock icon** in Repeater shows unlocked — click it to toggle if needed
+3. The MCP session ID in `mcp-session-id` header may expire — if you get a session error, re-initialize:
+   - Copy the `initialize` request from HTTP History into Repeater first
+   - Send it, copy the `mcp-session-id` from the response header
+   - Paste it into the header of your target request
+4. Click **Send** — response appears on the right
+
+**Modifying requests in Repeater:**
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
+  "name":"get_user",
+  "arguments":{"id": 2}
+}}
+```
+
+Change `"id": 2` to `"id": 1` to test IDOR. Change the token in Authorization to another user's token. Modify `"name"` to call a different tool. Repeater sends exactly what you write.
+
+### Step 5 — Fuzz with Intruder
+
+Right-click a request in Repeater → **Send to Intruder**.
+
+Highlight the value you want to fuzz (e.g. a tool parameter), click **Add §**. Load a wordlist (Burp's built-in fuzzing strings, or a custom injection list). Run the attack and sort by response length or status code to spot anomalies.
+
+---
+
+## All 28 checks
+
+| # | Check | Severity | What it tests |
+|---|---|---|---|
 | 1 | `enum` | MEDIUM | `tools/list` accessible without auth |
 | 2 | `auth` | CRITICAL | Tool calls succeed with no/invalid token |
-| 3 | `idor` | HIGH | Cross-user resource access (requires `--token2`) |
+| 3 | `idor` | HIGH | Cross-user resource access (needs `token2`) |
 | 4 | `injection` | HIGH | Prompt injection payloads reflected in responses |
-| 5 | `schema` | MEDIUM | Type confusion, oversized input, null bypass |
+| 5 | `schema` | MEDIUM | Type confusion, null bypass, oversized input |
 | 6 | `ssrf` | CRITICAL | Cloud metadata URLs accepted in tool parameters |
 | 7 | `publish` | CRITICAL | Destructive tool callable without confirmation gate |
 | 8 | `rate` | LOW | No rate limiting on tool calls |
 | 9 | `stored` | CRITICAL | Write injection payload, read back unescaped |
-| 10 | `scope` | HIGH | JWT scope claims not enforced; RBAC bypass via token2 |
-| 11 | `replay` | CRITICAL | Same request accepted twice — no nonce or timestamp |
-| 12 | `context_overflow` | HIGH | 50K–100K char payloads accepted — LLM context risk |
-| 13 | `poison_all` | CRITICAL | Injection payload appears in every response JSON field |
-| 14 | `tenant` | CRITICAL | Token2 reads token1's data — isolation broken |
-| 15 | `session` | HIGH | Weak or sequential session IDs (CVE-2025-6515 pattern) |
+| 10 | `scope` | HIGH | Read-only token reaches write tools |
+| 11 | `replay` | CRITICAL | Same request accepted twice — no nonce |
+| 12 | `context_overflow` | HIGH | 50K–100K char payload accepted without truncation |
+| 13 | `poison_all` | CRITICAL | Injection payload appears in every response field |
+| 14 | `tenant` | CRITICAL | Token2 reads token1 data — isolation broken |
+| 15 | `session` | HIGH | Weak or sequential session IDs |
 | 16 | `rug_pull` | CRITICAL | Tool descriptions change between `tools/list` calls |
-| 17 | `headers` | HIGH | CORS wildcard, missing CSP/HSTS/X-Content-Type, Server header |
-| 18 | `error_disclosure` | MEDIUM | Stack traces, file paths, DB credentials in error responses |
-| 19 | `tool_poisoning` | CRITICAL | Hidden Unicode (U+200B/202E) and injection patterns in tool descriptions |
-| 20 | `resources` | HIGH | `resources/list` and `prompts/list` accessible without auth |
-| 21 | `cmd_injection` | CRITICAL | Shell metacharacters (`;id`, `$(id)`) execute in tool parameters |
-| 22 | `path_traversal` | CRITICAL | `../../../etc/passwd` accepted in file/path parameters |
-| 23 | `jwt_audit` | CRITICAL | `alg=none`, no `exp`, sensitive claims, expired token accepted |
-| 24 | `oauth_discovery` | LOW | `/.well-known/oauth-authorization-server` and OIDC endpoints exposed |
-| 25 | `secret_scan` | CRITICAL | AWS keys, GitHub PATs, DB connection strings in tool responses |
-| 26 | `tool_shadowing` | CRITICAL | Duplicate tool names, homoglyphs, name/description mismatch |
+| 17 | `headers` | HIGH | CORS wildcard, missing CSP/HSTS, Server header leak |
+| 18 | `error_disclosure` | MEDIUM | Stack traces, file paths, DB credentials in errors |
+| 19 | `tool_poisoning` | CRITICAL | Hidden Unicode (U+200B/202E) in tool descriptions |
+| 20 | `resources` | HIGH | `resources/list` or `prompts/list` without auth |
+| 21 | `cmd_injection` | CRITICAL | Shell metacharacters (`;id`, `$(id)`) in parameters |
+| 22 | `path_traversal` | CRITICAL | `../../../etc/passwd` in file/path parameters |
+| 23 | `jwt_audit` | CRITICAL | `alg=none`, no `exp`, expired token accepted |
+| 24 | `oauth_discovery` | LOW | `/.well-known/oauth-authorization-server` exposed |
+| 25 | `secret_scan` | CRITICAL | AWS keys, GitHub PATs, DB strings in tool responses |
+| 26 | `tool_shadowing` | CRITICAL | Duplicate tool names, homoglyphs, name/desc mismatch |
 | 27 | `sampling` | CRITICAL | `sampling/createMessage` accessible without auth |
-| 28 | `schema_leak` | LOW | Sensitive enum values and internal field names in tool schemas |
-
-Full details — CVSS vectors, attack scenarios, PoC payloads, and remediation guidance — are in [OPERATOR_GUIDE.md](OPERATOR_GUIDE.md).
+| 28 | `schema_leak` | LOW | Sensitive field names / enum values in tool schemas |
 
 ---
 
-## Output
+## MCPTROTTER vs manual testing — what you save
 
-**Live TUI** — Rich-based streaming output while the scan runs. Findings panel updates in real time, colour-coded by severity.
+| Task | Manual in Burp | MCPTROTTER |
+|---|---|---|
+| Test auth bypass on every tool | 10–30 min | `scan auth` — 5s |
+| Test stored injection (write + read) | 20 min | `scan stored` — 3s |
+| Check all response fields for injection | 30+ min | `scan poison_all` — 5s |
+| Verify session ID entropy | 10 min | `scan session` — 2s |
+| Check replay on every tool | 20 min | `scan replay` — 5s |
+| Full 28-check assessment | 3–6 hours | `scan` — 30s |
 
-**Markdown report** (`--output report.md`) — pentest-ready finding list with details, evidence, and severity table. Paste directly into an engagement report.
-
-**JSON report** (`--output report.json`) — machine-readable output for CI/CD pipeline integration or ticketing system import.
-
-**AI analysis** (optional) — add an Anthropic or OpenAI key to generate an attack chain narrative, top-3 priorities, and an executive risk summary from the findings:
-
-```
-ai claude  sk-ant-api03-...
-analyze
-```
-
----
-
-## AI API key setup
-
-The core scanner needs no API key. The `analyze` command is optional and sends your findings to an LLM for an attack narrative and executive summary.
-
-**Get a key:**
-- Anthropic (Claude): [console.anthropic.com](https://console.anthropic.com) → API Keys → Create key. Starts with `sk-ant-api03-`
-- OpenAI (GPT-4o): [platform.openai.com](https://platform.openai.com) → API keys → Create. Starts with `sk-`
-
-**Use it inside the interactive shell:**
-```
-# After running scan:
-ai claude  sk-ant-api03-xxxxxxxxxxxx     ← paste your Anthropic key
-analyze
-
-# Or with OpenAI:
-ai openai  sk-xxxxxxxxxxxx
-analyze
-```
-
-**Or via environment variable (recommended for scripted use):**
-```bash
-export ANTHROPIC_API_KEY=sk-ant-api03-...
-python -m mcppt.cli scan --url https://target.com/mcp --token eyJ...
-# then in shell: analyze
-```
-
-The key is used only for that session — it is never stored to disk.
-
----
-
-## Burp Suite integration
-
-Route all MCPTROTTER traffic through Burp Suite for manual review, Repeater iteration, or Intruder fuzzing:
-
-```bash
-python -m mcppt.cli scan \
-  --url https://your-mcp-server.com/mcp \
-  --proxy http://127.0.0.1:8080 \
-  --no-verify \
-  --token eyJ...
-```
-
-Every JSON-RPC call — all 28 checks — appears in Burp's HTTP history with full request/response. Use Repeater to iterate on any finding manually, or Intruder to fuzz tool parameters with a wordlist.
-
----
-
-## Use MCPTROTTER as an MCP server
-
-MCPTROTTER can flip roles — instead of scanning MCP servers, it can *become* one. This lets Claude Desktop, Claude Code, or any MCP client call MCPTROTTER as a tool and trigger scans from inside an AI conversation.
-
-**Start MCPTROTTER in server mode:**
-```bash
-cd mcppt_tool
-python -m mcppt.cli serve-mcp          # default port 8899
-python -m mcppt.cli serve-mcp --port 9000
-```
-
-**Add it to Claude Desktop** (`claude_desktop_config.json`):
-```json
-{
-  "mcpServers": {
-    "mcptrotter": {
-      "command": "python",
-      "args": ["-m", "mcppt.cli", "serve-mcp", "--port", "8899"],
-      "cwd": "/path/to/mcppt_tool"
-    }
-  }
-}
-```
-
-**Once registered, Claude can call these tools directly:**
-```
-scan_target   → runs full scan against any MCP URL, returns findings JSON
-list_tools    → enumerates tools on a target MCP server
-call_tool     → calls a specific tool on any MCP server
-get_checks    → lists all 28 available checks with descriptions
-```
-
-So you can say to Claude: *"Scan https://target.com/mcp for security issues"* — and Claude calls MCPTROTTER's `scan_target` tool, gets the findings back as structured JSON, and reasons over them.
-
----
-
-## Architecture
-
-```
-mcppt_tool/
-├── mcppt/
-│   ├── core.py      — JSON-RPC transport (urllib, stdlib only, no external deps)
-│   ├── checks.py    — 28 check functions + thread-safe ScanState
-│   ├── shell.py     — interactive shell (rich TUI)
-│   ├── cli.py       — scan / list / call subcommands
-│   └── report.py    — JSON + Markdown report generation
-├── vuln_server.py   — demo vulnerable MCP server (Flask)
-├── smoke_test.py    — automated test: starts vuln_server, runs scan, asserts findings
-└── OPERATOR_GUIDE.md — full risk catalog for all 28 checks
-```
-
-The scanner is pure stdlib — `urllib`, `ssl`, `json`, `re`. The `rich` dependency is only for the shell TUI. `flask` is only for the demo server. Running `scan` in a pipeline needs neither.
-
----
-
-## Development
-
-```bash
-git clone https://github.com/gurudeepmallam-cmd/mcppt
-cd mcppt/mcppt_tool
-pip install -e ".[ai,ui]"
-pip install pytest ruff
-
-# Run all tests
-pytest tests/
-
-# Smoke test (starts demo server, runs full 28-check scan, exits 0 on pass)
-python smoke_test.py
-
-# Lint
-ruff check mcppt/
-```
-
----
-
-## Try it now — no target needed
-
-MCPTROTTER ships with a fully vulnerable demo MCP server (`vuln_server.py`) that simulates all 28 weaknesses safely — no real command execution, no real file reads, no cloud calls. It's designed specifically so you can run a complete scan, see every check fire, and understand exactly what the tool does before pointing it at a real target.
-
-```bash
-# Terminal 1 — start the vulnerable demo server
-cd mcppt_tool
-python vuln_server.py
-# Listening on http://127.0.0.1:8888/mcp
-
-# Terminal 2 — scan it
-python -m mcppt.cli scan \
-  --url http://127.0.0.1:8888/mcp \
-  --token valid-token-abc123 \
-  --token2 other-token-xyz789
-
-# Or run the automated smoke test — starts the server, scans, asserts all 28 checks fire
-python smoke_test.py
-# Expected: 17/17 assertions pass, 70+ findings across all severity levels
-```
-
-The demo server intentionally fails every single check — CORS wildcard, auth bypass, stored injection, command injection, rug pull, tool poisoning with hidden Unicode, weak session IDs, replay attacks, SSRF, path traversal, secret leaks, and more. It's the fastest way to see the full capability of the tool end to end.
+MCPTROTTER gives you the baseline in 30 seconds. You spend your time on what matters: manually verifying findings in Burp Repeater and chaining them into a demonstrated attack path.
 
 ---
 
 ## Part of Bugtrotter
 
-MCPTROTTER was built by **[Gurudeep Mallam](https://github.com/gurudeepmallam-cmd)** as part of **Bugtrotter** — a private red team and application security platform built from the ground up for modern attack surfaces: AI agents, MCP deployments, enterprise Active Directory, web applications, APIs, and networks.
+MCPTROTTER is the public automated scanner extracted from **Bugtrotter** — a full red team and application security platform built for modern attack surfaces.
 
-Bugtrotter is not a generic scanner rebranded for AI. It is a full-engagement security platform covering every phase from recon to final report. Here is what it does:
+### What Bugtrotter adds on top of MCPTROTTER
 
-**Manual Penetration Testing**
-- **Web application pentesting** — full manual assessment: authentication, session management, injection, access control, business logic, client-side attacks
-- **API security testing** — REST, GraphQL, MCP — endpoint enumeration, broken object level auth, mass assignment, rate limiting, schema abuse
-- **Active Directory** — full kill chain from external foothold to domain admin: Kerberoasting, AS-REP roasting, ADCS ESC abuse, DCSync, cross-domain Golden Ticket. [Read the AD + Claude Code + MCP pipeline →](https://medium.com/@gurudeep.mallam/i-built-an-ai-driven-active-directory-attack-pipeline-using-claude-code-mcp-heres-how-it-works-b3b1f8841770)
-- **Network pentesting** — infrastructure scanning, service enumeration, lateral movement, pivoting, internal network compromise
-- **Red teaming** — full adversary simulation: initial access, persistence, privilege escalation, exfiltration — end-to-end kill chain across the entire target environment
+| Capability | MCPTROTTER | Bugtrotter |
+|---|---|---|
+| Automated MCP scan (28 checks) | ✓ | ✓ |
+| Manual finding verification | You do it in Burp | Guided playbooks |
+| Chained exploit paths across tools | — | ✓ Full attack chain |
+| SAST review of MCP server code | — | ✓ |
+| Burp Suite MCP — business logic abuse | — | ✓ AI-driven |
+| AI agent red teaming | — | ✓ Multi-agent pipelines |
+| Active Directory kill chain | — | ✓ External → DA |
+| Web / API / network pentesting | — | ✓ Full engagement |
+| Final pentest report | Markdown export | Engagement-grade report |
 
-**Application Security (Code-Level)**
-- **SAST (Static Application Security Testing)** — source code analysis to identify vulnerabilities before deployment: injection flaws, hardcoded secrets, insecure crypto, dangerous function usage, and logic errors across Python, JavaScript, and more
-- **DAST (Dynamic Application Security Testing)** — live application testing with business logic abuse at its core. Bugtrotter leverages **Burp Suite MCP** to drive intelligent, context-aware dynamic testing — not just automated fuzzing, but real attacker-style business logic exploitation: price manipulation, privilege escalation flows, multi-step workflow abuse, and state-based vulnerabilities that no scanner catches automatically
+**MCPTROTTER in fingertips inside Bugtrotter:**
 
-**AI-Native Security**
-- **MCP security assessments** — MCPTROTTER is the public-facing automated scanner; the full Bugtrotter toolkit adds manual exploitation, chained attack playbooks across connected MCP tools, and client-ready reporting
-- **AI agent red teaming** — prompt injection chains, tool poisoning, context window manipulation, agent hijacking across multi-agent pipelines
-- **LLM integration security** — testing the full stack from model to MCP tool to backend, finding where the AI layer introduces risk that traditional testing misses
+In Bugtrotter, MCPTROTTER runs as a registered MCP server. Claude Code or Claude Desktop calls it directly:
 
-**MCPTROTTER + Bugtrotter = full coverage.** MCPTROTTER gives you the automated 28-check baseline in two minutes. Bugtrotter layers on top: manual chaining of findings into demonstrated exploit chains, custom payloads for the specific MCP implementation, cross-tool attack paths (e.g. SSRF → credential theft → lateral movement through connected tools), SAST review of the server-side code, and DAST with Burp Suite MCP driving business logic abuse — all delivered as a full engagement report.
+```
+"Scan https://target.com/mcp for security issues and prioritise findings"
+→ Claude calls scan_target tool
+→ MCPTROTTER runs all 28 checks
+→ Findings returned as structured JSON to Claude
+→ Claude reasons over them, chains the critical ones, drafts the report section
+```
 
-If you are running an MCP deployment and want it fully assessed, or want the complete Bugtrotter toolkit applied to your environment, reach out directly.
+No copy-paste. No context switching. The scan output feeds straight into the AI-driven engagement workflow — SSRF finding becomes an SSRF exploit attempt, auth bypass becomes a credential theft chain, stored injection becomes a demonstrated prompt hijack.
+
+That's the difference: MCPTROTTER finds the candidates in 30 seconds. Bugtrotter turns the candidates into proven, chained, client-ready findings.
 
 ---
 
-## License
+## Use MCPTROTTER as an MCP server itself
 
-MIT — see [LICENSE](LICENSE).
+MCPTROTTER can become an MCP server — exposing its scan capability as tools that any MCP client (Claude Desktop, MCP Inspector, another agent) can call.
+
+```bash
+mcppt serve-mcp --port 8899
+```
+
+Add to Claude Desktop config (`claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "mcptrotter": {
+      "command": "mcppt",
+      "args": ["serve-mcp", "--port", "8899"]
+    }
+  }
+}
+```
+
+Tools exposed:
+- `scan_target` — full scan, returns findings JSON
+- `list_tools` — enumerate tools on any MCP server
+- `call_tool` — call any tool on any MCP server
+- `get_checks` — list all 28 checks with descriptions
+
+Inspect with MCP Inspector:
+```bash
+npx @modelcontextprotocol/inspector http://127.0.0.1:8899/mcp
+```
 
 ---
 
 ## Author
 
-**Gurudeep Mallam** — Security Researcher, Bugtrotter
+**Gurudeep Mallam** — Security Researcher
 
 - GitHub: [github.com/gurudeepmallam-cmd](https://github.com/gurudeepmallam-cmd)
 - LinkedIn: [Mallam Gurudeep](https://in.linkedin.com/in/mallam-gurudeep-7734941aa)
 - Email: gurudeep.mallam@gmail.com
+
+---
+
+## License
+
+MIT
