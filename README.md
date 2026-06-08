@@ -164,6 +164,36 @@ analyze
 
 ---
 
+## AI API key setup
+
+The core scanner needs no API key. The `analyze` command is optional and sends your findings to an LLM for an attack narrative and executive summary.
+
+**Get a key:**
+- Anthropic (Claude): [console.anthropic.com](https://console.anthropic.com) → API Keys → Create key. Starts with `sk-ant-api03-`
+- OpenAI (GPT-4o): [platform.openai.com](https://platform.openai.com) → API keys → Create. Starts with `sk-`
+
+**Use it inside the interactive shell:**
+```
+# After running scan:
+ai claude  sk-ant-api03-xxxxxxxxxxxx     ← paste your Anthropic key
+analyze
+
+# Or with OpenAI:
+ai openai  sk-xxxxxxxxxxxx
+analyze
+```
+
+**Or via environment variable (recommended for scripted use):**
+```bash
+export ANTHROPIC_API_KEY=sk-ant-api03-...
+python -m mcppt.cli scan --url https://target.com/mcp --token eyJ...
+# then in shell: analyze
+```
+
+The key is used only for that session — it is never stored to disk.
+
+---
+
 ## Demo server
 
 A deliberately vulnerable MCP server is included for testing and development:
@@ -204,6 +234,42 @@ Every JSON-RPC call — all 28 checks — appears in Burp's HTTP history with fu
 
 ---
 
+## Use MCPTROTTER as an MCP server
+
+MCPTROTTER can flip roles — instead of scanning MCP servers, it can *become* one. This lets Claude Desktop, Claude Code, or any MCP client call MCPTROTTER as a tool and trigger scans from inside an AI conversation.
+
+**Start MCPTROTTER in server mode:**
+```bash
+cd mcppt_tool
+python -m mcppt.cli serve-mcp          # default port 8899
+python -m mcppt.cli serve-mcp --port 9000
+```
+
+**Add it to Claude Desktop** (`claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "mcptrotter": {
+      "command": "python",
+      "args": ["-m", "mcppt.cli", "serve-mcp", "--port", "8899"],
+      "cwd": "/path/to/mcppt_tool"
+    }
+  }
+}
+```
+
+**Once registered, Claude can call these tools directly:**
+```
+scan_target   → runs full scan against any MCP URL, returns findings JSON
+list_tools    → enumerates tools on a target MCP server
+call_tool     → calls a specific tool on any MCP server
+get_checks    → lists all 28 available checks with descriptions
+```
+
+So you can say to Claude: *"Scan https://target.com/mcp for security issues"* — and Claude calls MCPTROTTER's `scan_target` tool, gets the findings back as structured JSON, and reasons over them.
+
+---
+
 ## Architecture
 
 ```
@@ -240,6 +306,16 @@ python smoke_test.py
 # Lint
 ruff check mcppt/
 ```
+
+---
+
+## Part of Bugtrotter
+
+MCPTROTTER is a public tool from the **Bugtrotter** red team and application security toolkit — a private platform purpose-built for AI-native attack surfaces, enterprise MCP deployments, and modern AppSec workflows.
+
+Bugtrotter covers the full engagement lifecycle: recon, exploitation, reporting, and remediation tracking — with purpose-built tooling for MCP, LLM agents, and web application security.
+
+If you are running an MCP deployment and want it assessed, or want Bugtrotter's full toolkit deployed against your specific environment, reach out.
 
 ---
 
