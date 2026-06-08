@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import threading
-from typing import Optional
 
 from flask import Flask, request, Response
 
@@ -219,10 +218,14 @@ def mcp_endpoint():
     if method == "tools/call":
         name = params.get("name", "")
         args = params.get("arguments", {})
-        if name == "scan_target":   return _handle_scan_target(args, req_id)
-        if name == "list_tools":    return _handle_list_tools(args, req_id)
-        if name == "call_tool":     return _handle_call_tool(args, req_id)
-        if name == "get_checks":    return _handle_get_checks(req_id)
+        if name == "scan_target":
+            return _handle_scan_target(args, req_id)
+        if name == "list_tools":
+            return _handle_list_tools(args, req_id)
+        if name == "call_tool":
+            return _handle_call_tool(args, req_id)
+        if name == "get_checks":
+            return _handle_get_checks(req_id)
         return _sse({"jsonrpc": "2.0", "id": req_id, "error": {"code": -32601, "message": f"Unknown tool: {name}"}})
 
     return _sse({"jsonrpc": "2.0", "id": req_id, "error": {"code": -32601, "message": f"Unknown method: {method}"}})

@@ -118,7 +118,7 @@ def check_enum(state: ScanState) -> list:
 # ── Check 2: Auth Bypass ──────────────────────────────────────────────────────
 
 def check_auth(state: ScanState, tools: list) -> None:
-    url, token = state.url, state.token
+    url = state.url
     state.start_check("auth", "[2/16] Auth bypass — call tools without/invalid token")
 
     no_args_tools = [t for t in tools if not t.get("inputSchema", {}).get("required")]
@@ -616,8 +616,8 @@ def check_context_overflow(state: ScanState, tools: list) -> None:
                 state.finding(
                     "context_overflow", sev,
                     f"Context overflow: {name} accepts {size:,}-char payload",
-                    f"Attack: write max-size content → agent reads it → LLM context window "
-                    f"overwhelmed → system prompt / guardrail instructions truncated",
+                    "Attack: write max-size content → agent reads it → LLM context window "
+                    "overwhelmed → system prompt / guardrail instructions truncated",
                 )
                 break
             elif r["status"] in (400, 413, 422):
@@ -1322,7 +1322,8 @@ def check_jwt_audit(state: ScanState) -> None:
         state.finish_check()
         return
 
-    pad = lambda s: s + "=" * (4 - len(s) % 4)
+    def pad(s):
+        return s + "=" * (4 - len(s) % 4)
     try:
         header  = json.loads(base64.urlsafe_b64decode(pad(parts[0])).decode(errors="replace"))
         payload = json.loads(base64.urlsafe_b64decode(pad(parts[1])).decode(errors="replace"))
@@ -1622,12 +1623,12 @@ def check_schema_leak(state: ScanState, tools: list) -> None:
         props = tool.get("inputSchema", {}).get("properties", {})
         desc = tool.get("description", "")
 
-        for field, meta in props.items():
+        for fname, meta in props.items():
             # Sensitive field names
             for pattern, label in FIELD_PATTERNS:
-                if re.search(pattern, field):
+                if re.search(pattern, fname):
                     state.finding("schema_leak", "MEDIUM",
-                                  f"Sensitive field in schema: {name}.{field} ({label})",
+                                  f"Sensitive field in schema: {name}.{fname} ({label})",
                                   "Tool schema reveals internal data model — aids attacker enumeration")
                     break
             # Enum values with sensitive data
@@ -1635,7 +1636,7 @@ def check_schema_leak(state: ScanState, tools: list) -> None:
                 for pattern in ENUM_RISK:
                     if re.search(pattern, str(val)):
                         state.finding("schema_leak", "LOW",
-                                      f"Sensitive enum value in {name}.{field}: '{val}'",
+                                      f"Sensitive enum value in {name}.{fname}: '{val}'",
                                       "Enum exposes internal roles/states — enables targeted privilege escalation")
                         break
 

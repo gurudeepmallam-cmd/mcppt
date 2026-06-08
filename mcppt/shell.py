@@ -72,7 +72,7 @@ class MCPPTShell(cmd.Cmd):
             while True:
                 try:
                     console.print(
-                        f"\n[bold red]mcppt[/][dim]>[/] ",
+                        "\n[bold red]mcppt[/][dim]>[/] ",
                         end="",
                     )
                     line = input()
@@ -200,12 +200,15 @@ class MCPPTShell(cmd.Cmd):
 
         t = threading.Thread(target=run_scan, args=(state, checks), daemon=True)
         s = threading.Thread(target=_stream, daemon=True)
-        t.start(); s.start()
-        t.join(); time.sleep(0.3); s.join(timeout=1)
+        t.start()
+        s.start()
+        t.join()
+        time.sleep(0.3)
+        s.join(timeout=1)
 
         self.findings = state.findings
         counts = Counter(f.severity for f in state.findings)
-        console.print(f"\n  [dim]─────────────────────────────────[/]")
+        console.print("\n  [dim]─────────────────────────────────[/]")
         console.print(
             f"  Done in {state.elapsed:.1f}s  |  "
             f"[bold red]{counts.get('CRITICAL',0)} CRITICAL[/]  "

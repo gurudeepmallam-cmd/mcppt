@@ -7,7 +7,6 @@ from collections import Counter
 from typing import Optional, Callable
 
 from rich import box
-from rich.columns import Columns
 from rich.console import Console, Group
 from rich.layout import Layout
 from rich.live import Live

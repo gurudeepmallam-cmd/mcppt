@@ -167,7 +167,7 @@ def _add_common(p: argparse.ArgumentParser) -> None:
 
 def _ensure_utf8() -> None:
     """Reconfigure stdout/stderr to UTF-8 on Windows so Rich box-drawing chars encode."""
-    import sys, io
+    import sys
     if hasattr(sys.stdout, "reconfigure"):
         try:
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
