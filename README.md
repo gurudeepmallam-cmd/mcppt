@@ -5,6 +5,7 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/pypi/v/mcppt?label=PyPI&color=orange"/>
   <img src="https://img.shields.io/badge/python-3.10%2B-blue"/>
   <img src="https://img.shields.io/badge/checks-28-red"/>
   <img src="https://img.shields.io/badge/license-MIT-green"/>
@@ -36,13 +37,19 @@ Works against any MCP server using Streamable HTTP transport (POST + SSE respons
 
 ## Install
 
+**From PyPI (recommended):**
+```bash
+pip install mcppt
+```
+
+**From source:**
 ```bash
 git clone https://github.com/gurudeepmallam-cmd/mcppt
 cd mcppt/mcppt_tool
 pip install -e .
 ```
 
-Requires Python 3.10+. Core scanner uses only stdlib — `urllib`, `ssl`, `json`. `rich` is for the TUI shell only.
+Requires Python 3.10+.
 
 ---
 
