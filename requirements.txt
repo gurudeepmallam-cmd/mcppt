@@ -1,0 +1,18 @@
+# Core — required for the interactive shell and demo server
+rich>=13.0
+flask>=3.0
+
+# Optional — AI analysis (ai claude / ai openai commands)
+# pip install mcppt[ai]
+# anthropic>=0.25
+# openai>=1.0
+
+# Optional — Streamlit web UI
+# pip install mcppt[ui]
+# streamlit>=1.30
+
+# Dev / testing
+# pip install mcppt[dev]
+# pytest>=8.0
+# pytest-mock>=3.0
+# ruff>=0.4

@@ -1,10 +1,18 @@
 # MCPTROTTER — MCP Pentest Tool
 
-28 automated security checks for any MCP server. Pure Python, no AI required.
+<p align="center">
+  <img src="docs/mcptrotter.jpeg" alt="MCPTROTTER" width="420"/>
+</p>
 
-![CI](https://github.com/gurudeepmallam-cmd/mcppt/actions/workflows/ci.yml/badge.svg)
-![Python](https://img.shields.io/pypi/pyversions/mcppt)
-![License](https://img.shields.io/github/license/gurudeepmallam-cmd/mcppt)
+<p align="center">
+  28 automated security checks for any MCP server. Pure Python, no AI required.
+</p>
+
+<p align="center">
+  <img src="https://github.com/gurudeepmallam-cmd/mcppt/actions/workflows/ci.yml/badge.svg" alt="CI"/>
+  <img src="https://img.shields.io/pypi/pyversions/mcppt" alt="Python"/>
+  <img src="https://img.shields.io/github/license/gurudeepmallam-cmd/mcppt" alt="License"/>
+</p>
 
 ---
 
