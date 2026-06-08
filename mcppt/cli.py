@@ -48,6 +48,9 @@ def cmd_scan(args: argparse.Namespace) -> None:
 
     checks = [c.strip() for c in args.checks.split(",")]
     run_all = "all" in checks
+    # enum must always run first — other checks depend on the tool list it builds
+    if not run_all and "enum" not in checks:
+        checks = ["enum"] + checks
     total = len(ALL_CHECKS) if run_all else len([c for c in checks if c in ALL_CHECKS])
 
     state = ScanState(
