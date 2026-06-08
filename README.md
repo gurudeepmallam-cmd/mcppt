@@ -1,7 +1,7 @@
 # MCPTROTTER — MCP Pentest Tool
 
 <p align="center">
-  <b>28 automated security checks for any MCP server.<br>Pure Python. No AI key needed. No Docker. No Kali.</b>
+  <img src="docs/mcptrotter.jpeg" alt="MCPTROTTER" width="380"/>
 </p>
 
 <p align="center">
