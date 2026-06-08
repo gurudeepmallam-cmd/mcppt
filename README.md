@@ -312,17 +312,27 @@ The demo server intentionally fails every single check — CORS wildcard, auth b
 
 ## Part of Bugtrotter
 
-MCPTROTTER was built by **[Gurudeep Mallam](https://github.com/gurudeepmallam-cmd)** as part of **Bugtrotter** — a private red team and application security platform built from the ground up for AI-native attack surfaces.
+MCPTROTTER was built by **[Gurudeep Mallam](https://github.com/gurudeepmallam-cmd)** as part of **Bugtrotter** — a private red team and application security platform built from the ground up for modern attack surfaces: AI agents, MCP deployments, enterprise Active Directory, web applications, APIs, and networks.
 
-Bugtrotter is not a generic security scanner rebranded for AI. It was purpose-built for the attack surface that emerged when AI agents started connecting to real systems via protocols like MCP. It covers:
+Bugtrotter is not a generic scanner rebranded for AI. It is a full-engagement security platform covering every phase from recon to final report. Here is what it does:
 
-- **AI agent red teaming** — prompt injection chains, tool poisoning, context manipulation, agent hijacking across multi-agent pipelines
-- **Active Directory attack pipelines** — full kill chain from external foothold to domain admin, automated via Claude Code and MCP tooling. [Read how it works →](https://medium.com/@gurudeep.mallam/i-built-an-ai-driven-active-directory-attack-pipeline-using-claude-code-mcp-heres-how-it-works-b3b1f8841770)
-- **MCP security assessments** — MCPTROTTER is the public-facing scanner; the full Bugtrotter toolkit adds manual exploitation scripts, chained attack playbooks, remediation tracking, and client-ready reporting
-- **Web application security** — API testing, IDOR, auth bypass, business logic flaws across enterprise deployments
-- **LLM integration security** — testing AI-powered applications end to end, from the model layer down to the MCP tools it calls
+**Manual Penetration Testing**
+- **Web application pentesting** — full manual assessment: authentication, session management, injection, access control, business logic, client-side attacks
+- **API security testing** — REST, GraphQL, MCP — endpoint enumeration, broken object level auth, mass assignment, rate limiting, schema abuse
+- **Active Directory** — full kill chain from external foothold to domain admin: Kerberoasting, AS-REP roasting, ADCS ESC abuse, DCSync, cross-domain Golden Ticket. [Read the AD + Claude Code + MCP pipeline →](https://medium.com/@gurudeep.mallam/i-built-an-ai-driven-active-directory-attack-pipeline-using-claude-code-mcp-heres-how-it-works-b3b1f8841770)
+- **Network pentesting** — infrastructure scanning, service enumeration, lateral movement, pivoting, internal network compromise
+- **Red teaming** — full adversary simulation: initial access, persistence, privilege escalation, exfiltration — end-to-end kill chain across the entire target environment
 
-**MCPTROTTER + Bugtrotter = significantly more coverage.** The public scanner automates the 28-check baseline in two minutes. Bugtrotter layers on top with manual chaining of findings, custom exploitation payloads tailored to the specific MCP implementation, cross-tool attack paths (e.g. SSRF → credential theft → lateral movement through connected tools), and a full engagement report. What MCPTROTTER catches in automated checks, Bugtrotter turns into a demonstrated exploit chain.
+**Application Security (Code-Level)**
+- **SAST (Static Application Security Testing)** — source code analysis to identify vulnerabilities before deployment: injection flaws, hardcoded secrets, insecure crypto, dangerous function usage, and logic errors across Python, JavaScript, and more
+- **DAST (Dynamic Application Security Testing)** — live application testing with business logic abuse at its core. Bugtrotter leverages **Burp Suite MCP** to drive intelligent, context-aware dynamic testing — not just automated fuzzing, but real attacker-style business logic exploitation: price manipulation, privilege escalation flows, multi-step workflow abuse, and state-based vulnerabilities that no scanner catches automatically
+
+**AI-Native Security**
+- **MCP security assessments** — MCPTROTTER is the public-facing automated scanner; the full Bugtrotter toolkit adds manual exploitation, chained attack playbooks across connected MCP tools, and client-ready reporting
+- **AI agent red teaming** — prompt injection chains, tool poisoning, context window manipulation, agent hijacking across multi-agent pipelines
+- **LLM integration security** — testing the full stack from model to MCP tool to backend, finding where the AI layer introduces risk that traditional testing misses
+
+**MCPTROTTER + Bugtrotter = full coverage.** MCPTROTTER gives you the automated 28-check baseline in two minutes. Bugtrotter layers on top: manual chaining of findings into demonstrated exploit chains, custom payloads for the specific MCP implementation, cross-tool attack paths (e.g. SSRF → credential theft → lateral movement through connected tools), SAST review of the server-side code, and DAST with Burp Suite MCP driving business logic abuse — all delivered as a full engagement report.
 
 If you are running an MCP deployment and want it fully assessed, or want the complete Bugtrotter toolkit applied to your environment, reach out directly.
 
