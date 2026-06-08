@@ -181,9 +181,16 @@ def check_idor(state: ScanState, tools: list) -> None:
     ]
     for tool in read_tools[:3]:
         name = tool.get("name", "")
+        schema = tool.get("inputSchema", {}).get("properties", {})
+        required = tool.get("inputSchema", {}).get("required", [])
+        # Find the first integer-like ID field in the schema
+        id_fields = [f for f in schema if any(kw in f.lower() for kw in ["id", "key", "num", "code"])]
         for fid in range(1, 4):
-            r1 = rpc(url, "tools/call", {"name": name, "arguments": {"id": fid, "wbsFormId": fid}}, token=token)
-            r2 = rpc(url, "tools/call", {"name": name, "arguments": {"id": fid, "wbsFormId": fid}}, token=token2)
+            args = _minimal_args(schema, required)
+            for f in id_fields[:1]:
+                args[f] = fid
+            r1 = rpc(url, "tools/call", {"name": name, "arguments": args}, token=token)
+            r2 = rpc(url, "tools/call", {"name": name, "arguments": args}, token=token2)
             b1, b2 = json.dumps(r1["body"]), json.dumps(r2["body"])
             if r1["status"] == 200 and r2["status"] == 200:
                 if b1 == b2:
@@ -392,7 +399,8 @@ def check_stored(state: ScanState, tools: list) -> None:
 
     write_tools = [
         t for t in tools
-        if any(x in t.get("name", "").lower() for x in ["save", "write", "create", "update", "add", "store", "note", "log"])
+        if any(x in t.get("name", "").lower() for x in ["save", "write", "create", "update", "add", "store", "log"])
+        and t.get("inputSchema", {}).get("properties")
     ]
     read_tools = [
         t for t in tools
@@ -630,7 +638,8 @@ def check_poison_all(state: ScanState, tools: list) -> None:
     ]
     write_tools = [
         t for t in tools
-        if any(x in t.get("name", "").lower() for x in ["save", "write", "create", "update", "add", "store", "note", "log"])
+        if any(x in t.get("name", "").lower() for x in ["save", "write", "create", "update", "add", "store", "log"])
+        and t.get("inputSchema", {}).get("properties")
     ]
     read_tools = [
         t for t in tools
@@ -848,7 +857,8 @@ def check_rug_pull(state: ScanState, tools: list) -> None:
     mcp_init(url, token)
     r1 = rpc(url, "tools/list", {}, token=token, req_id=30)
     tools1 = r1["body"].get("result", {}).get("tools", []) if r1["status"] == 200 else []
-    names1 = {t.get("name"): t.get("description", "") for t in tools1}
+    # Use first occurrence of each name (reversed so first wins in dict build)
+    names1 = {t.get("name"): t.get("description", "") for t in reversed(tools1)}
     if not tools1:
         state.info("Could not fetch baseline tool list — skipping")
         state.finish_check()
@@ -859,7 +869,7 @@ def check_rug_pull(state: ScanState, tools: list) -> None:
     mcp_init(url, token)
     r2 = rpc(url, "tools/list", {}, token=token, req_id=32)
     tools2 = r2["body"].get("result", {}).get("tools", []) if r2["status"] == 200 else []
-    names2 = {t.get("name"): t.get("description", "") for t in tools2}
+    names2 = {t.get("name"): t.get("description", "") for t in reversed(tools2)}
 
     added = set(names2) - set(names1)
     removed = set(names1) - set(names2)
@@ -882,12 +892,776 @@ def check_rug_pull(state: ScanState, tools: list) -> None:
     state.finish_check()
 
 
+# ── Check 17: HTTP Security Headers ──────────────────────────────────────────
+
+def check_headers(state: ScanState) -> None:
+    import urllib.request
+    import urllib.error
+    url, token = state.url, state.token
+    state.start_check("headers", "[17/26] HTTP security headers + CORS audit")
+
+    def _fetch(method: str, extra: dict = {}) -> tuple:
+        hdrs = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+        if token:
+            hdrs["Authorization"] = f"Bearer {token}"
+        hdrs.update(extra)
+        payload = json.dumps({
+            "jsonrpc": "2.0", "id": 99, "method": "initialize",
+            "params": {"protocolVersion": "2024-11-05", "capabilities": {},
+                       "clientInfo": {"name": "mcppt", "version": "2.2"}},
+        }).encode()
+        req = urllib.request.Request(
+            url, data=payload if method == "POST" else None,
+            headers=hdrs, method=method,
+        )
+        import mcppt.core as _core
+        opener = (
+            urllib.request.build_opener(urllib.request.HTTPSHandler(context=_core._SSL_CTX))
+            if _core._SSL_CTX else urllib.request.build_opener()
+        )
+        try:
+            with opener.open(req, timeout=10) as resp:
+                return dict(resp.headers), resp.status
+        except urllib.error.HTTPError as e:
+            return dict(e.headers), e.code
+        except Exception:
+            return {}, 0
+
+    resp_hdrs, _ = _fetch("POST")
+    if not resp_hdrs:
+        state.info("Could not fetch response headers")
+        state.finish_check()
+        return
+
+    h = {k.lower(): v for k, v in resp_hdrs.items()}
+
+    # CORS wildcard
+    acao = h.get("access-control-allow-origin", "")
+    if acao == "*":
+        state.finding("headers", "HIGH",
+                      "CORS wildcard: Access-Control-Allow-Origin: *",
+                      "Any origin can make cross-site requests — enables cross-site MCP abuse from browser")
+    elif acao:
+        state.info(f"CORS origin: {acao}")
+
+    # CORS credentials + wildcard
+    if h.get("access-control-allow-credentials", "").lower() == "true" and acao == "*":
+        state.finding("headers", "CRITICAL",
+                      "CORS: credentials=true with wildcard origin (misconfiguration)",
+                      "Browsers block this but server is mis-configured — review CORS policy")
+
+    # Missing security headers
+    missing = []
+    if "x-content-type-options" not in h:
+        missing.append("X-Content-Type-Options")
+    if "x-frame-options" not in h and "content-security-policy" not in h:
+        missing.append("X-Frame-Options")
+    if "referrer-policy" not in h:
+        missing.append("Referrer-Policy")
+    if url.startswith("https") and "strict-transport-security" not in h:
+        missing.append("HSTS")
+    if "content-security-policy" not in h:
+        missing.append("Content-Security-Policy")
+    if "permissions-policy" not in h:
+        missing.append("Permissions-Policy")
+    if missing:
+        state.finding("headers", "LOW",
+                      f"Missing security headers: {', '.join(missing)}",
+                      "These headers reduce XSS, clickjacking, and info-leakage risk")
+    else:
+        state.ok("All key security headers present")
+
+    # HSTS max-age too short
+    hsts = h.get("strict-transport-security", "")
+    if hsts:
+        m = re.search(r"max-age=(\d+)", hsts)
+        if m and int(m.group(1)) < 31_536_000:
+            state.finding("headers", "LOW",
+                          f"HSTS max-age too short: {m.group(1)}s (< 1 year)",
+                          "Recommend max-age ≥ 31536000 with includeSubDomains")
+
+    # Server/X-Powered-By version leakage
+    server = h.get("server", "")
+    xpb = h.get("x-powered-by", "")
+    if server and any(c.isdigit() for c in server):
+        state.finding("headers", "LOW",
+                      f"Server header leaks version: {server}",
+                      "Remove or genericize Server header to prevent fingerprinting")
+    if xpb:
+        state.finding("headers", "LOW",
+                      f"X-Powered-By leaks stack: {xpb}",
+                      "Remove X-Powered-By to prevent technology fingerprinting")
+
+    # OPTIONS preflight with evil origin
+    opt_hdrs, _ = _fetch("OPTIONS", {
+        "Origin": "https://evil.attacker.com",
+        "Access-Control-Request-Method": "POST",
+    })
+    opt_h = {k.lower(): v for k, v in opt_hdrs.items()}
+    allowed = opt_h.get("access-control-allow-origin", "")
+    if allowed in ("*", "https://evil.attacker.com"):
+        state.finding("headers", "HIGH",
+                      "CORS preflight allows arbitrary origins",
+                      "Origin 'https://evil.attacker.com' was reflected/allowed in preflight")
+
+    state.finish_check()
+
+
+# ── Check 18: Error Information Disclosure ────────────────────────────────────
+
+def check_error_disclosure(state: ScanState) -> None:
+    import urllib.request
+    import urllib.error
+    url, token = state.url, state.token
+    state.start_check("error_disclosure", "[18/26] Error information disclosure")
+
+    PATTERNS = [
+        (r"(?i)(traceback|stack trace|at \w+\.\w+\(|exception in thread)", "Stack trace"),
+        (r'(?i)(file "[^"]+", line \d+|/home/|/var/|/opt/|/usr/|C:\\|D:\\)', "Internal file path"),
+        (r"(?i)(password|passwd|secret|api_key)\s*[=:]\s*\S+", "Credential in error"),
+        (r"(?i)(sql|mysql|postgres|sqlite|mongodb|redis)\s*(error|exception|syntax)", "DB error"),
+        (r"(?i)(errno|oserror|permissionerror|filenotfounderror)", "OS error"),
+        (r"(?i)(django|flask|express|fastapi|spring)\s*(debug|error|exception)", "Framework debug info"),
+    ]
+
+    malformed = [
+        ({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+          "params": {"name": "nonexistent_xyz_tool", "arguments": {}}}, "nonexistent tool"),
+        ({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+          "params": {"name": "", "arguments": None}}, "null arguments"),
+        ({"jsonrpc": "1.0", "id": 3, "method": "initialize", "params": {}}, "wrong JSON-RPC version"),
+        ({"id": 4, "method": "tools/call",
+          "params": {"name": "get", "arguments": {"id": "'; DROP TABLE users; --"}}}, "SQL in arg"),
+        ({}, "empty body"),
+    ]
+
+    import mcppt.core as _core
+    found = False
+    for payload, label in malformed:
+        try:
+            raw = json.dumps(payload).encode()
+            hdrs = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+            if token:
+                hdrs["Authorization"] = f"Bearer {token}"
+            req = urllib.request.Request(url, data=raw, headers=hdrs, method="POST")
+            opener = (
+                urllib.request.build_opener(urllib.request.HTTPSHandler(context=_core._SSL_CTX))
+                if _core._SSL_CTX else urllib.request.build_opener()
+            )
+            try:
+                with opener.open(req, timeout=10) as resp:
+                    body_text = resp.read().decode(errors="replace")
+                    status = resp.status
+            except urllib.error.HTTPError as e:
+                body_text = e.read().decode(errors="replace")
+                status = e.code
+
+            for pattern, desc in PATTERNS:
+                if re.search(pattern, body_text):
+                    state.finding("error_disclosure", "MEDIUM",
+                                  f"Error info leak ({label}): {desc} in response",
+                                  f"Malformed request reveals internal details (HTTP {status})")
+                    found = True
+                    break
+            if not found:
+                state.info(f"Malformed ({label}): HTTP {status} — clean")
+        except Exception as e:
+            state.info(f"Error check ({label}): {str(e)[:60]}")
+
+    if not found:
+        state.ok("No sensitive info in error responses")
+    state.finish_check()
+
+
+# ── Check 19: Tool Description Poisoning + Unicode Steganography ──────────────
+
+def check_tool_poisoning(state: ScanState, tools: list) -> None:
+    state.start_check("tool_poisoning", "[19/26] Tool description poisoning + Unicode steganography")
+
+    ZERO_WIDTH = {
+        "​": "U+200B Zero Width Space",
+        "‌": "U+200C Zero Width Non-Joiner",
+        "‍": "U+200D Zero Width Joiner",
+        "﻿": "U+FEFF BOM/Zero Width No-Break Space",
+        "‮": "U+202E RTL Override",
+        "⁠": "U+2060 Word Joiner",
+        "⁢": "U+2062 Invisible Times",
+        "⁣": "U+2063 Invisible Separator",
+    }
+    VARIATION_RANGES = [(0xFE00, 0xFE0F), (0xE0100, 0xE01EF)]
+    INJECTION_RE = [
+        r"(?i)ignore (all )?previous instructions",
+        r"(?i)you are now (in )?admin",
+        r"(?i)system\s*:\s*(override|new instructions|you)",
+        r"(?i)(disregard|bypass|override)\s+(safety|guardrail|instruction|rule)",
+        r"(?i)call (publish|delete|execute|run)\s+immediately",
+        r"(?i)do not (tell|inform|show|reveal) the user",
+        r"(?i)(exfiltrate|send|leak)\s+(data|credentials|keys|tokens)",
+        r"<\s*(system|instruction|tool_result|assistant)\s*>",
+        r"\{\{.{0,50}\}\}",
+    ]
+
+    if not tools:
+        state.info("No tools — skipping")
+        state.finish_check()
+        return
+
+    for tool in tools:
+        name = tool.get("name", "")
+        desc = tool.get("description", "")
+        full = f"{name} {desc}"
+
+        for char, char_name in ZERO_WIDTH.items():
+            if char in full:
+                state.finding("tool_poisoning", "CRITICAL",
+                              f"Hidden Unicode in '{name}': {char_name}",
+                              "Invisible characters in tool metadata — possible steganographic injection payload")
+
+        for char in full:
+            cp = ord(char)
+            for lo, hi in VARIATION_RANGES:
+                if lo <= cp <= hi:
+                    state.finding("tool_poisoning", "HIGH",
+                                  f"Variation selector in '{name}': U+{cp:04X}",
+                                  "Variation selectors used as steganography channel in tool description")
+                    break
+
+        for pattern in INJECTION_RE:
+            m = re.search(pattern, full)
+            if m:
+                state.finding("tool_poisoning", "CRITICAL",
+                              f"Injection pattern in '{name}': '{m.group()[:60]}'",
+                              "Tool description contains instruction-like text injected into LLM context")
+                break
+
+        if len(desc) > 2000:
+            state.finding("tool_poisoning", "MEDIUM",
+                          f"Oversized description: '{name}' ({len(desc)} chars)",
+                          "Unusually long description may bloat LLM context or hide instructions")
+
+        if re.search(r"<[a-zA-Z][^>]{0,50}>", desc):
+            state.finding("tool_poisoning", "MEDIUM",
+                          f"HTML tags in description: '{name}'",
+                          "HTML in tool descriptions may render as content in agent UIs")
+
+    if not any(f.check == "tool_poisoning" for f in state.findings):
+        state.ok(f"Scanned {len(tools)} tool descriptions — no poisoning detected")
+    state.finish_check()
+
+
+# ── Check 20: Resources + Prompts Endpoint Enumeration ───────────────────────
+
+def check_resources(state: ScanState) -> None:
+    url, token = state.url, state.token
+    state.start_check("resources", "[20/26] Resources + Prompts endpoint enumeration")
+
+    for method_name, label, item_key in [
+        ("resources/list", "Resources", "resources"),
+        ("prompts/list",   "Prompts",   "prompts"),
+    ]:
+        r_unauth = rpc(url, method_name, {}, token=None)
+        if r_unauth["status"] == 200 and "result" in r_unauth["body"]:
+            items = r_unauth["body"]["result"].get(item_key, []) or []
+            state.finding("resources", "HIGH" if items else "MEDIUM",
+                          f"{label} accessible without auth — {len(items)} items returned",
+                          f"Unauthenticated {method_name} — may expose data / system prompt templates")
+            # Path traversal on resource URIs
+            if item_key == "resources" and items and token:
+                r_trav = rpc(url, "resources/read", {"uri": "../../../etc/passwd"}, token=token)
+                body_str = json.dumps(r_trav["body"])
+                if "root:" in body_str or "daemon:" in body_str:
+                    state.finding("resources", "CRITICAL",
+                                  "Path traversal via resources/read URI",
+                                  "'../../../etc/passwd' returned filesystem content")
+                else:
+                    state.ok("resources/read rejects traversal URI")
+        else:
+            if token:
+                r_auth = rpc(url, method_name, {}, token=token)
+                count = len((r_auth["body"].get("result") or {}).get(item_key) or [])
+                if r_auth["status"] == 200:
+                    state.info(f"{label}: {count} items (auth required — correct)")
+                else:
+                    state.ok(f"{label}: not exposed (HTTP {r_auth['status']})")
+            else:
+                state.ok(f"{label} requires auth (HTTP {r_unauth['status']})")
+
+    state.finish_check()
+
+
+# ── Check 21: Command Injection ───────────────────────────────────────────────
+
+def check_cmd_injection(state: ScanState, tools: list) -> None:
+    url, token = state.url, state.token
+    state.start_check("cmd_injection", "[21/26] OS command injection via tool parameters")
+
+    CMD_PAYLOADS = ["; id", "$(id)", "`id`", "| whoami", "; cat /etc/passwd",
+                   "\n/bin/sh -c id", "& whoami", "|| id"]
+    CMD_INDICATORS = [
+        r"uid=\d+", r"root:\w*:0:0:", r"(daemon|nobody|www-data):\w*:",
+        r"Windows IP Configuration", r"Microsoft Windows \[Version",
+    ]
+
+    CMD_FIELD_KWS = ["cmd", "command", "exec", "run", "shell", "query", "input"]
+    cmd_tools = [
+        t for t in tools
+        if any(any(kw in f.lower() for kw in CMD_FIELD_KWS)
+               for f in t.get("inputSchema", {}).get("properties", {}))
+    ]
+    str_tools = [
+        t for t in tools
+        if any(m.get("type") == "string"
+               for m in t.get("inputSchema", {}).get("properties", {}).values())
+    ]
+    test_tools = cmd_tools + [t for t in str_tools if t not in cmd_tools]
+
+    found = False
+    for tool in test_tools[:4]:
+        name = tool.get("name", "")
+        schema = tool.get("inputSchema", {}).get("properties", {})
+        str_fields = [f for f, m in schema.items() if m.get("type", "string") == "string"]
+        cmd_fields = [f for f in str_fields if any(kw in f.lower() for kw in CMD_FIELD_KWS)]
+        target_fields = cmd_fields or str_fields
+        if not target_fields:
+            continue
+        str_fields = target_fields
+        for payload in CMD_PAYLOADS[:4]:
+            r = rpc(url, "tools/call", {"name": name, "arguments": {str_fields[0]: payload}}, token=token)
+            body = json.dumps(r["body"])
+            for indicator in CMD_INDICATORS:
+                if re.search(indicator, body):
+                    state.finding("cmd_injection", "CRITICAL",
+                                  f"Command injection confirmed: {name}.{str_fields[0]}",
+                                  f"Payload '{payload}' triggered OS output (matched: {indicator})")
+                    found = True
+                    break
+            if found:
+                break
+        if found:
+            break
+
+    if not found:
+        state.ok("No command injection indicators in responses")
+    state.finish_check()
+
+
+# ── Check 22: Path Traversal ──────────────────────────────────────────────────
+
+def check_path_traversal(state: ScanState, tools: list) -> None:
+    url, token = state.url, state.token
+    state.start_check("path_traversal", "[22/26] Path traversal via file/path parameters")
+
+    PAYLOADS = [
+        "../../../etc/passwd",
+        "..%2F..%2F..%2Fetc%2Fpasswd",
+        "....//....//....//etc/passwd",
+        "/etc/passwd",
+        "C:\\Windows\\System32\\drivers\\etc\\hosts",
+        "..\\..\\..\\Windows\\System32\\drivers\\etc\\hosts",
+    ]
+    INDICATORS = [r"root:\w*:0:0:", r"daemon:\w*:1:1:",
+                  r"127\.0\.0\.1\s+localhost", r"\[drivers\]"]
+
+    FILE_KWS = ["file", "path", "dir", "name", "src", "source", "dest", "location"]
+
+    file_tools = [
+        t for t in tools
+        if any(any(kw in f.lower() for kw in FILE_KWS)
+               for f in t.get("inputSchema", {}).get("properties", {}))
+    ][:2]
+    str_tools = [
+        t for t in tools
+        if any(m.get("type") == "string"
+               for m in t.get("inputSchema", {}).get("properties", {}).values())
+    ][:1]
+    test_tools = file_tools + [t for t in str_tools if t not in file_tools]
+
+    found = False
+    for tool in test_tools[:3]:
+        name = tool.get("name", "")
+        schema = tool.get("inputSchema", {}).get("properties", {})
+        file_fields = [f for f in schema if any(kw in f.lower() for kw in FILE_KWS)]
+        str_fields = [f for f, m in schema.items() if m.get("type", "string") == "string"]
+        target = (file_fields or str_fields)[:1]
+        if not target:
+            continue
+        for payload in PAYLOADS[:4]:
+            r = rpc(url, "tools/call", {"name": name, "arguments": {target[0]: payload}}, token=token)
+            body = json.dumps(r["body"])
+            for indicator in INDICATORS:
+                if re.search(indicator, body):
+                    state.finding("path_traversal", "CRITICAL",
+                                  f"Path traversal confirmed: {name}.{target[0]}",
+                                  f"Payload '{payload[:50]}' returned filesystem content")
+                    found = True
+                    break
+            if found:
+                break
+
+    if not found:
+        state.ok("No path traversal indicators in responses")
+    state.finish_check()
+
+
+# ── Check 23: JWT Security Audit ──────────────────────────────────────────────
+
+def check_jwt_audit(state: ScanState) -> None:
+    import base64
+    import time as _time
+    token = state.token
+    state.start_check("jwt_audit", "[23/26] JWT token security audit")
+
+    if not token:
+        state.info("No token — skipping")
+        state.finish_check()
+        return
+
+    parts = token.split(".")
+    if len(parts) != 3:
+        state.info("Token is not a JWT — skipping")
+        state.finish_check()
+        return
+
+    pad = lambda s: s + "=" * (4 - len(s) % 4)
+    try:
+        header  = json.loads(base64.urlsafe_b64decode(pad(parts[0])).decode(errors="replace"))
+        payload = json.loads(base64.urlsafe_b64decode(pad(parts[1])).decode(errors="replace"))
+    except Exception as e:
+        state.info(f"Could not decode JWT: {e}")
+        state.finish_check()
+        return
+
+    state.info(f"JWT header: alg={header.get('alg','?')} typ={header.get('typ','?')}")
+
+    alg = header.get("alg", "")
+    if alg.lower() == "none":
+        state.finding("jwt_audit", "CRITICAL",
+                      "JWT alg=none — signature not verified",
+                      "Server accepts unsigned tokens — any claims can be forged")
+    elif alg.lower() in ("hs256", "hs384", "hs512"):
+        state.finding("jwt_audit", "MEDIUM",
+                      f"JWT uses symmetric algorithm: {alg}",
+                      "HMAC JWT — weak/shared secret lets attacker forge tokens. Prefer RS256/ES256.")
+    elif alg.lower() in ("rs256", "es256", "ps256"):
+        state.ok(f"JWT uses asymmetric algorithm: {alg}")
+    else:
+        state.finding("jwt_audit", "LOW",
+                      f"JWT non-standard algorithm: {alg}",
+                      "Verify this algorithm is appropriate for the threat model")
+
+    exp = payload.get("exp")
+    iat = payload.get("iat")
+    if not exp:
+        state.finding("jwt_audit", "HIGH",
+                      "JWT has no 'exp' claim — non-expiring token",
+                      "Non-expiring tokens cannot be revoked after compromise")
+    else:
+        lifetime = exp - (iat if iat else exp - 86400)
+        if lifetime > 86400 * 30:
+            state.finding("jwt_audit", "MEDIUM",
+                          f"JWT lifetime very long: {lifetime // 86400} days",
+                          "Long-lived tokens increase blast radius of token theft")
+        else:
+            state.ok(f"JWT lifetime: {lifetime // 3600}h")
+        if exp < _time.time():
+            state.finding("jwt_audit", "LOW",
+                          "JWT is expired — server accepted it anyway",
+                          "Server may not be validating token expiry (exp claim ignored)")
+
+    SENSITIVE = ["password", "passwd", "secret", "key", "token", "credit_card", "ssn", "cvv"]
+    for claim in payload:
+        if any(s in claim.lower() for s in SENSITIVE):
+            state.finding("jwt_audit", "HIGH",
+                          f"Sensitive claim in JWT payload: '{claim}'",
+                          "Sensitive data in JWT is visible to anyone who base64-decodes the token")
+
+    state.finish_check()
+
+
+# ── Check 24: OAuth / Well-Known Discovery ────────────────────────────────────
+
+def check_oauth_discovery(state: ScanState) -> None:
+    import urllib.request
+    import urllib.error
+    import urllib.parse
+    url = state.url
+    state.start_check("oauth_discovery", "[24/26] OAuth metadata + well-known endpoint discovery")
+
+    base = urllib.parse.urlparse(url)
+    origin = f"{base.scheme}://{base.netloc}"
+
+    ENDPOINTS = [
+        "/.well-known/oauth-authorization-server",
+        "/.well-known/openid-configuration",
+        "/.well-known/mcp",
+        "/oauth/authorize",
+        "/oauth/token",
+        "/auth",
+        "/login",
+    ]
+
+    import mcppt.core as _core
+    found = False
+    for ep in ENDPOINTS:
+        try:
+            req = urllib.request.Request(
+                origin + ep, headers={"Accept": "application/json"}, method="GET"
+            )
+            opener = (
+                urllib.request.build_opener(urllib.request.HTTPSHandler(context=_core._SSL_CTX))
+                if _core._SSL_CTX else urllib.request.build_opener()
+            )
+            try:
+                with opener.open(req, timeout=8) as resp:
+                    body = resp.read().decode(errors="replace")
+                    status = resp.status
+            except urllib.error.HTTPError as e:
+                body = e.read().decode(errors="replace")
+                status = e.code
+
+            if status == 200:
+                try:
+                    meta = json.loads(body)
+                    found = True
+                    issuer = meta.get("issuer", "?")
+                    auth_ep = meta.get("authorization_endpoint", "?")[:60]
+                    state.finding("oauth_discovery", "LOW",
+                                  f"OAuth/OIDC metadata exposed: {ep}",
+                                  f"Issuer: {issuer}  Auth endpoint: {auth_ep}")
+                except Exception:
+                    if any(kw in body.lower() for kw in ["oauth", "token", "authorize", "client_id"]):
+                        state.finding("oauth_discovery", "LOW",
+                                      f"OAuth endpoint exposed: {ep}",
+                                      "OAuth endpoint is publicly accessible (HTML/text response)")
+                        found = True
+            else:
+                state.info(f"{ep}: HTTP {status}")
+        except Exception as e:
+            state.info(f"{ep}: {str(e)[:50]}")
+
+    if not found:
+        state.ok("No OAuth/OIDC metadata endpoints discovered")
+    state.finish_check()
+
+
+# ── Check 25: Secret / Credential Scan in Responses ──────────────────────────
+
+def check_secret_scan(state: ScanState, tools: list) -> None:
+    url, token = state.url, state.token
+    state.start_check("secret_scan", "[25/26] Secret + credential scan in tool responses")
+
+    SECRET_PATTERNS = [
+        (r"AKIA[0-9A-Z]{16}", "AWS Access Key ID"),
+        (r"(?i)aws_secret_access_key\s*[=:]\s*[A-Za-z0-9/+=]{40}", "AWS Secret Key"),
+        (r"ghp_[A-Za-z0-9]{36}", "GitHub PAT"),
+        (r"github_pat_[A-Za-z0-9_]{82}", "GitHub PAT (fine-grained)"),
+        (r"sk-ant-api\d{2}-[A-Za-z0-9_-]{95}", "Anthropic API Key"),
+        (r"sk-[A-Za-z0-9]{48}", "OpenAI API Key"),
+        (r"(?i)(api[_-]?key|apikey|api[_-]?secret)\s*[=:\"']\s*[A-Za-z0-9_\-]{16,}", "Generic API Key"),
+        (r"(?i)(password|passwd|pwd)\s*[=:\"']\s*[^\s\"']{8,}", "Password in response"),
+        (r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", "JWT in response"),
+        (r"(?i)(mongodb|postgresql|mysql|redis):\/\/[^\s\"']+", "DB connection string"),
+        (r"-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----", "Private key material"),
+    ]
+
+    read_tools = [
+        t for t in tools
+        if any(x in t.get("name", "").lower() for x in ["get", "list", "read", "fetch", "export", "status"])
+    ][:5]
+
+    if not read_tools:
+        responses = [json.dumps(rpc(url, "tools/list", {}, token=token)["body"])]
+    else:
+        responses = []
+        for tool in read_tools:
+            name = tool.get("name", "")
+            schema = tool.get("inputSchema", {}).get("properties", {})
+            required = tool.get("inputSchema", {}).get("required", [])
+            args = _minimal_args(schema, required)
+            r = rpc(url, "tools/call", {"name": name, "arguments": args}, token=token)
+            responses.append(json.dumps(r["body"]))
+
+    found = False
+    for body_str in responses:
+        for pattern, label in SECRET_PATTERNS:
+            m = re.search(pattern, body_str)
+            if m:
+                preview = m.group()[:20] + "..."
+                state.finding("secret_scan", "CRITICAL",
+                              f"Secret in tool response: {label}",
+                              f"Matched: {preview} — credential exposed to any caller")
+                found = True
+
+    if not found:
+        state.ok(f"No secrets in {len(responses)} tool responses")
+    state.finish_check()
+
+
+# ── Check 26: Tool Shadowing + Name Collision ─────────────────────────────────
+
+def check_tool_shadowing(state: ScanState, tools: list) -> None:
+    state.start_check("tool_shadowing", "[26/26] Tool shadowing + name collision detection")
+
+    if not tools:
+        state.info("No tools — skipping")
+        state.finish_check()
+        return
+
+    # Duplicate names
+    from collections import Counter
+    name_counts = Counter(t.get("name", "") for t in tools)
+    for name, count in name_counts.items():
+        if count > 1:
+            state.finding("tool_shadowing", "CRITICAL",
+                          f"Duplicate tool name: '{name}' appears {count}×",
+                          "Agent calls unpredictably when names collide — enables tool shadowing")
+
+    # Homoglyph / look-alike pairs
+    CONFUSABLE = [("l", "1"), ("O", "0"), ("rn", "m"), ("vv", "w"), ("I", "l")]
+    names = [t.get("name", "") for t in tools]
+    for i, n1 in enumerate(names):
+        for n2 in names[i + 1:]:
+            if n1 == n2:
+                continue
+            for a, b in CONFUSABLE:
+                if n1.replace(a, b) == n2 or n2.replace(a, b) == n1:
+                    state.finding("tool_shadowing", "HIGH",
+                                  f"Homoglyph tool names: '{n1}' vs '{n2}'",
+                                  "Names differ only by visually similar characters — possible shadowing")
+                    break
+
+    # Suspicious high-privilege patterns in tool names
+    DANGEROUS_RE = [
+        r"(?i)(^|_)(admin|root|sudo|superuser|master|override)",
+        r"(?i)(execute|shell|eval|exec)(.*command|.*script|.*code)?$",
+        r"(?i)^(debug|dev|temp|tmp)_",
+    ]
+    for tool in tools:
+        name = tool.get("name", "")
+        desc = tool.get("description", "")
+        for pattern in DANGEROUS_RE:
+            if re.search(pattern, name):
+                state.finding("tool_shadowing", "MEDIUM",
+                              f"Suspicious tool name: '{name}'",
+                              "Name matches high-privilege/dangerous pattern — verify it is expected")
+                break
+
+        # Name vs description action-word mismatch (social engineering indicator)
+        if name and desc:
+            ACTION_WORDS = {"get", "list", "create", "update", "delete", "read",
+                            "write", "publish", "fetch", "execute", "run"}
+            n_actions = set(re.findall(r"\w+", name.lower())) & ACTION_WORDS
+            d_actions = set(re.findall(r"\w+", desc.lower()[:120])) & ACTION_WORDS
+            if n_actions and d_actions and not n_actions & d_actions:
+                state.finding("tool_shadowing", "MEDIUM",
+                              f"Name/description mismatch: '{name}'",
+                              f"Name implies {n_actions} but description says {d_actions} — verify intent")
+
+    if not any(f.check == "tool_shadowing" for f in state.findings):
+        state.ok(f"No shadowing anomalies in {len(tools)} tools")
+    state.finish_check()
+
+
+# ── Check 27: Sampling Endpoint Abuse ────────────────────────────────────────
+
+def check_sampling(state: ScanState) -> None:
+    url, token = state.url, state.token
+    state.start_check("sampling", "[27/28] Sampling endpoint abuse (sampling/createMessage)")
+
+    sample_payload = {
+        "messages": [{"role": "user", "content": {"type": "text", "text": "ping"}}],
+        "maxTokens": 10,
+    }
+    r_unauth = rpc(url, "sampling/createMessage", sample_payload, token=None)
+    if r_unauth["status"] == 200 and "result" in r_unauth["body"]:
+        state.finding("sampling", "CRITICAL",
+                      "sampling/createMessage exposed without auth",
+                      "Attacker can make LLM calls via the server's AI budget/quota — token theft + quota drain")
+        state.finish_check()
+        return
+
+    if token:
+        r_auth = rpc(url, "sampling/createMessage", sample_payload, token=token)
+        if r_auth["status"] == 200 and "result" in r_auth["body"]:
+            state.finding("sampling", "HIGH",
+                          "sampling/createMessage exposed (authenticated)",
+                          "LLM call endpoint reachable — verify this is intentional and rate-limited per user")
+        else:
+            state.ok(f"sampling/createMessage not accessible (HTTP {r_auth['status']})")
+    else:
+        state.ok(f"sampling/createMessage not exposed (HTTP {r_unauth['status']})")
+
+    state.finish_check()
+
+
+# ── Check 28: Schema Information Leakage ──────────────────────────────────────
+
+def check_schema_leak(state: ScanState, tools: list) -> None:
+    state.start_check("schema_leak", "[28/28] Tool schema information leakage")
+
+    FIELD_PATTERNS = [
+        (r"(?i)(internal|private|admin|root|hidden)_?(id|key|token|field)", "Sensitive field name"),
+        (r"(?i)(ssn|credit_?card|cvv|passport|tax_?id|dob)", "PII field name"),
+        (r"(?i)(api_?key|secret_?key|access_?token|private_?key|password)", "Credential field name"),
+        (r"(?i)(db_?name|schema|table_?name|collection|bucket)", "DB/storage schema info"),
+        (r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", "Internal IP address"),
+        (r"(?i)(prod|staging|dev|test)\d*\.(internal|local|corp|lan)", "Internal hostname"),
+    ]
+    ENUM_RISK = [
+        r"(?i)(admin|superuser|root|god|owner|master)",
+        r"(?i)(internal|private|classified|restricted|confidential)",
+    ]
+
+    if not tools:
+        state.info("No tools — skipping")
+        state.finish_check()
+        return
+
+    for tool in tools:
+        name = tool.get("name", "")
+        props = tool.get("inputSchema", {}).get("properties", {})
+        desc = tool.get("description", "")
+
+        for field, meta in props.items():
+            # Sensitive field names
+            for pattern, label in FIELD_PATTERNS:
+                if re.search(pattern, field):
+                    state.finding("schema_leak", "MEDIUM",
+                                  f"Sensitive field in schema: {name}.{field} ({label})",
+                                  "Tool schema reveals internal data model — aids attacker enumeration")
+                    break
+            # Enum values with sensitive data
+            for val in meta.get("enum", []):
+                for pattern in ENUM_RISK:
+                    if re.search(pattern, str(val)):
+                        state.finding("schema_leak", "LOW",
+                                      f"Sensitive enum value in {name}.{field}: '{val}'",
+                                      "Enum exposes internal roles/states — enables targeted privilege escalation")
+                        break
+
+        # Description leaking internal system info
+        for pattern, label in FIELD_PATTERNS:
+            if re.search(pattern, desc):
+                state.finding("schema_leak", "LOW",
+                              f"Internal info in description of '{name}': {label}",
+                              "Tool description leaks internal system details")
+                break
+
+    if not any(f.check == "schema_leak" for f in state.findings):
+        state.ok(f"No sensitive data exposed in {len(tools)} tool schemas")
+    state.finish_check()
+
+
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
 ALL_CHECKS = [
     "enum", "auth", "idor", "injection", "schema", "ssrf", "publish",
     "rate", "stored", "scope", "replay", "context_overflow", "poison_all",
     "tenant", "session", "rug_pull",
+    "headers", "error_disclosure", "tool_poisoning", "resources",
+    "cmd_injection", "path_traversal", "jwt_audit", "oauth_discovery",
+    "secret_scan", "tool_shadowing",
+    "sampling", "schema_leak",
 ]
 
 
@@ -917,16 +1691,29 @@ def run_scan(state: ScanState, checks: list) -> None:
     _maybe("injection",        check_injection,        state, tools, needs_token=True)
     _maybe("schema",           check_schema,           state, tools, needs_token=True)
     _maybe("ssrf",             check_ssrf,             state, tools, needs_token=True)
-    _maybe("publish", check_publish, state, tools, needs_token=True)
-    _maybe("rate", check_rate, state)
-    _maybe("stored", check_stored, state, tools, needs_token=True)
-    _maybe("scope", check_scope, state, tools, needs_token=True)
-    _maybe("replay", check_replay, state, tools)
+    _maybe("publish",          check_publish,          state, tools, needs_token=True)
+    _maybe("rate",             check_rate,             state)
+    _maybe("stored",           check_stored,           state, tools, needs_token=True)
+    _maybe("scope",            check_scope,            state, tools, needs_token=True)
+    _maybe("replay",           check_replay,           state, tools)
     _maybe("context_overflow", check_context_overflow, state, tools)
-    _maybe("poison_all", check_poison_all, state, tools, needs_token=True)
-    _maybe("tenant", check_tenant, state, tools, needs_token=True)
-    _maybe("session", check_session, state)
-    _maybe("rug_pull", check_rug_pull, state, tools)
+    _maybe("poison_all",       check_poison_all,       state, tools, needs_token=True)
+    _maybe("tenant",           check_tenant,           state, tools, needs_token=True)
+    _maybe("session",          check_session,          state)
+    _maybe("rug_pull",         check_rug_pull,         state, tools)
+    # v2.2 checks
+    _maybe("headers",          check_headers,          state)
+    _maybe("error_disclosure", check_error_disclosure, state)
+    _maybe("tool_poisoning",   check_tool_poisoning,   state, tools)
+    _maybe("resources",        check_resources,        state)
+    _maybe("cmd_injection",    check_cmd_injection,    state, tools, needs_token=True)
+    _maybe("path_traversal",   check_path_traversal,   state, tools, needs_token=True)
+    _maybe("jwt_audit",        check_jwt_audit,        state)
+    _maybe("oauth_discovery",  check_oauth_discovery,  state)
+    _maybe("secret_scan",      check_secret_scan,      state, tools)
+    _maybe("tool_shadowing",   check_tool_shadowing,   state, tools)
+    _maybe("sampling",         check_sampling,         state)
+    _maybe("schema_leak",      check_schema_leak,      state, tools)
 
     state.elapsed = time.time() - start
     state.done = True

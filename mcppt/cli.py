@@ -11,6 +11,10 @@ CHECKS = [
     "enum", "auth", "idor", "injection", "schema", "ssrf", "publish",
     "rate", "stored", "scope", "replay", "context_overflow", "poison_all",
     "tenant", "session", "rug_pull",
+    "headers", "error_disclosure", "tool_poisoning", "resources",
+    "cmd_injection", "path_traversal", "jwt_audit", "oauth_discovery",
+    "secret_scan", "tool_shadowing",
+    "sampling", "schema_leak",
 ]
 
 EPILOG = """
@@ -186,7 +190,7 @@ def main() -> None:
     _ensure_utf8()
     parser = argparse.ArgumentParser(
         prog="mcppt",
-        description="MCPTROTTER v2.1 — MCP Pentest Tool  |  16 automated security checks",
+        description="MCPTROTTER v2.3 — MCP Pentest Tool  |  28 automated security checks",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=EPILOG,
     )

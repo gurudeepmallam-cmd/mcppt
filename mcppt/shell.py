@@ -405,6 +405,10 @@ Be concise. Use bullet points. No preamble."""
                            Checks: enum auth idor injection schema ssrf publish
                                    rate stored scope replay context_overflow
                                    poison_all tenant session rug_pull
+                                   headers error_disclosure tool_poisoning
+                                   resources cmd_injection path_traversal
+                                   jwt_audit oauth_discovery secret_scan
+                                   tool_shadowing
 
   [bold cyan]Explore[/]
     list                   Enumerate tools + schemas
@@ -487,7 +491,7 @@ def _banner():
     for line in _ART:
         console.print(Text(line, style="bold red"))
     console.print()
-    console.print(Text("  MCP Pentest Tool  v2.1  --  16 automated security checks", style="dim"))
+    console.print(Text("  MCP Pentest Tool  v2.3  --  28 automated security checks", style="dim"))
     console.print()
     console.print(Text("  by Gurudeep Mallam", style="bold white"))
     console.print(Text("  github  : https://github.com/gurudeepmallam-cmd", style="dim cyan"))
