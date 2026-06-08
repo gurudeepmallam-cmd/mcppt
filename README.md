@@ -1,7 +1,7 @@
 # MCPTROTTER — MCP Pentest Tool
 
 <p align="center">
-  <img src="docs/mcptrotter.jpeg" alt="MCPTROTTER" width="380"/>
+  <img src="https://raw.githubusercontent.com/gurudeepmallam-cmd/mcppt/main/docs/mcptrotter.jpeg" alt="MCPTROTTER" width="380"/>
 </p>
 
 <p align="center">
