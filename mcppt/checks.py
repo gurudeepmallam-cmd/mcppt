@@ -895,35 +895,26 @@ def check_rug_pull(state: ScanState, tools: list) -> None:
 # ── Check 17: HTTP Security Headers ──────────────────────────────────────────
 
 def check_headers(state: ScanState) -> None:
-    import urllib.request
-    import urllib.error
     url, token = state.url, state.token
-    state.start_check("headers", "[17/26] HTTP security headers + CORS audit")
+    state.start_check("headers", "[17/31] HTTP security headers + CORS audit")
 
     def _fetch(method: str, extra: dict = {}) -> tuple:
         hdrs = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
         if token:
             hdrs["Authorization"] = f"Bearer {token}"
         hdrs.update(extra)
-        payload = json.dumps({
+        payload = {
             "jsonrpc": "2.0", "id": 99, "method": "initialize",
             "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                       "clientInfo": {"name": "mcppt", "version": "2.2"}},
-        }).encode()
-        req = urllib.request.Request(
-            url, data=payload if method == "POST" else None,
-            headers=hdrs, method=method,
-        )
-        import mcppt.core as _core
-        opener = (
-            urllib.request.build_opener(urllib.request.HTTPSHandler(context=_core._SSL_CTX))
-            if _core._SSL_CTX else urllib.request.build_opener()
-        )
+                       "clientInfo": {"name": "mcppt", "version": "3.0"}},
+        }
         try:
-            with opener.open(req, timeout=10) as resp:
-                return dict(resp.headers), resp.status
-        except urllib.error.HTTPError as e:
-            return dict(e.headers), e.code
+            resp = _core._SESSION.request(
+                method, url,
+                json=payload if method == "POST" else None,
+                headers=hdrs, timeout=10,
+            )
+            return dict(resp.headers), resp.status_code
         except Exception:
             return {}, 0
 
@@ -1010,10 +1001,8 @@ def check_headers(state: ScanState) -> None:
 # ── Check 18: Error Information Disclosure ────────────────────────────────────
 
 def check_error_disclosure(state: ScanState) -> None:
-    import urllib.request
-    import urllib.error
     url, token = state.url, state.token
-    state.start_check("error_disclosure", "[18/26] Error information disclosure")
+    state.start_check("error_disclosure", "[18/31] Error information disclosure")
 
     PATTERNS = [
         (r"(?i)(traceback|stack trace|at \w+\.\w+\(|exception in thread)", "Stack trace"),
@@ -1035,26 +1024,15 @@ def check_error_disclosure(state: ScanState) -> None:
         ({}, "empty body"),
     ]
 
-    import mcppt.core as _core
     found = False
     for payload, label in malformed:
         try:
-            raw = json.dumps(payload).encode()
             hdrs = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
             if token:
                 hdrs["Authorization"] = f"Bearer {token}"
-            req = urllib.request.Request(url, data=raw, headers=hdrs, method="POST")
-            opener = (
-                urllib.request.build_opener(urllib.request.HTTPSHandler(context=_core._SSL_CTX))
-                if _core._SSL_CTX else urllib.request.build_opener()
-            )
-            try:
-                with opener.open(req, timeout=10) as resp:
-                    body_text = resp.read().decode(errors="replace")
-                    status = resp.status
-            except urllib.error.HTTPError as e:
-                body_text = e.read().decode(errors="replace")
-                status = e.code
+            resp = _core._SESSION.post(url, json=payload, headers=hdrs, timeout=10)
+            body_text = resp.text
+            status = resp.status_code
 
             for pattern, desc in PATTERNS:
                 if re.search(pattern, body_text):
@@ -1076,7 +1054,7 @@ def check_error_disclosure(state: ScanState) -> None:
 # ── Check 19: Tool Description Poisoning + Unicode Steganography ──────────────
 
 def check_tool_poisoning(state: ScanState, tools: list) -> None:
-    state.start_check("tool_poisoning", "[19/26] Tool description poisoning + Unicode steganography")
+    state.start_check("tool_poisoning", "[19/31] Tool description poisoning + Unicode steganography")
 
     ZERO_WIDTH = {
         "​": "U+200B Zero Width Space",
@@ -1153,7 +1131,7 @@ def check_tool_poisoning(state: ScanState, tools: list) -> None:
 
 def check_resources(state: ScanState) -> None:
     url, token = state.url, state.token
-    state.start_check("resources", "[20/26] Resources + Prompts endpoint enumeration")
+    state.start_check("resources", "[20/31] Resources + Prompts endpoint enumeration")
 
     for method_name, label, item_key in [
         ("resources/list", "Resources", "resources"),
@@ -1193,7 +1171,7 @@ def check_resources(state: ScanState) -> None:
 
 def check_cmd_injection(state: ScanState, tools: list) -> None:
     url, token = state.url, state.token
-    state.start_check("cmd_injection", "[21/26] OS command injection via tool parameters")
+    state.start_check("cmd_injection", "[21/31] OS command injection via tool parameters")
 
     CMD_PAYLOADS = ["; id", "$(id)", "`id`", "| whoami", "; cat /etc/passwd",
                    "\n/bin/sh -c id", "& whoami", "|| id"]
@@ -1249,7 +1227,7 @@ def check_cmd_injection(state: ScanState, tools: list) -> None:
 
 def check_path_traversal(state: ScanState, tools: list) -> None:
     url, token = state.url, state.token
-    state.start_check("path_traversal", "[22/26] Path traversal via file/path parameters")
+    state.start_check("path_traversal", "[22/31] Path traversal via file/path parameters")
 
     PAYLOADS = [
         "../../../etc/passwd",
@@ -1309,7 +1287,7 @@ def check_jwt_audit(state: ScanState) -> None:
     import base64
     import time as _time
     token = state.token
-    state.start_check("jwt_audit", "[23/26] JWT token security audit")
+    state.start_check("jwt_audit", "[23/31] JWT token security audit")
 
     if not token:
         state.info("No token — skipping")
@@ -1382,11 +1360,9 @@ def check_jwt_audit(state: ScanState) -> None:
 # ── Check 24: OAuth / Well-Known Discovery ────────────────────────────────────
 
 def check_oauth_discovery(state: ScanState) -> None:
-    import urllib.request
-    import urllib.error
     import urllib.parse
     url = state.url
-    state.start_check("oauth_discovery", "[24/26] OAuth metadata + well-known endpoint discovery")
+    state.start_check("oauth_discovery", "[24/31] OAuth metadata + well-known endpoint discovery")
 
     base = urllib.parse.urlparse(url)
     origin = f"{base.scheme}://{base.netloc}"
@@ -1401,24 +1377,12 @@ def check_oauth_discovery(state: ScanState) -> None:
         "/login",
     ]
 
-    import mcppt.core as _core
     found = False
     for ep in ENDPOINTS:
         try:
-            req = urllib.request.Request(
-                origin + ep, headers={"Accept": "application/json"}, method="GET"
-            )
-            opener = (
-                urllib.request.build_opener(urllib.request.HTTPSHandler(context=_core._SSL_CTX))
-                if _core._SSL_CTX else urllib.request.build_opener()
-            )
-            try:
-                with opener.open(req, timeout=8) as resp:
-                    body = resp.read().decode(errors="replace")
-                    status = resp.status
-            except urllib.error.HTTPError as e:
-                body = e.read().decode(errors="replace")
-                status = e.code
+            resp = _core._SESSION.get(origin + ep, headers={"Accept": "application/json"}, timeout=8)
+            body = resp.text
+            status = resp.status_code
 
             if status == 200:
                 try:
@@ -1449,7 +1413,7 @@ def check_oauth_discovery(state: ScanState) -> None:
 
 def check_secret_scan(state: ScanState, tools: list) -> None:
     url, token = state.url, state.token
-    state.start_check("secret_scan", "[25/26] Secret + credential scan in tool responses")
+    state.start_check("secret_scan", "[25/31] Secret + credential scan in tool responses")
 
     SECRET_PATTERNS = [
         (r"AKIA[0-9A-Z]{16}", "AWS Access Key ID"),
@@ -1501,7 +1465,7 @@ def check_secret_scan(state: ScanState, tools: list) -> None:
 # ── Check 26: Tool Shadowing + Name Collision ─────────────────────────────────
 
 def check_tool_shadowing(state: ScanState, tools: list) -> None:
-    state.start_check("tool_shadowing", "[26/26] Tool shadowing + name collision detection")
+    state.start_check("tool_shadowing", "[26/31] Tool shadowing + name collision detection")
 
     if not tools:
         state.info("No tools — skipping")
@@ -1567,7 +1531,7 @@ def check_tool_shadowing(state: ScanState, tools: list) -> None:
 
 def check_sampling(state: ScanState) -> None:
     url, token = state.url, state.token
-    state.start_check("sampling", "[27/28] Sampling endpoint abuse (sampling/createMessage)")
+    state.start_check("sampling", "[27/31] Sampling endpoint abuse (sampling/createMessage)")
 
     sample_payload = {
         "messages": [{"role": "user", "content": {"type": "text", "text": "ping"}}],
@@ -1598,7 +1562,7 @@ def check_sampling(state: ScanState) -> None:
 # ── Check 28: Schema Information Leakage ──────────────────────────────────────
 
 def check_schema_leak(state: ScanState, tools: list) -> None:
-    state.start_check("schema_leak", "[28/28] Tool schema information leakage")
+    state.start_check("schema_leak", "[28/31] Tool schema information leakage")
 
     FIELD_PATTERNS = [
         (r"(?i)(internal|private|admin|root|hidden)_?(id|key|token|field)", "Sensitive field name"),
@@ -1653,6 +1617,158 @@ def check_schema_leak(state: ScanState, tools: list) -> None:
     state.finish_check()
 
 
+# ── Check 29: HTTP Method Confusion ──────────────────────────────────────────
+
+def check_http_method_confusion(state: ScanState) -> None:
+    url = state.url
+    state.start_check("http_method_confusion", "[29/31] HTTP method confusion (GET/PUT/DELETE on MCP endpoint)")
+
+    for method in ["GET", "DELETE", "PUT", "PATCH"]:
+        try:
+            resp = _core._SESSION.request(method, url, timeout=8)
+            if resp.status_code < 400:
+                state.finding(
+                    "http_method_confusion", "MEDIUM",
+                    f"HTTP {method} accepted by MCP endpoint (HTTP {resp.status_code})",
+                    "MCP endpoint should reject non-POST methods. Unexpected verbs may trigger unintended server behaviour.",
+                )
+            else:
+                state.ok(f"{method}: HTTP {resp.status_code} (rejected)")
+        except Exception as e:
+            state.info(f"{method}: {str(e)[:60]}")
+    state.finish_check()
+
+
+# ── Check 30: Protocol Version Downgrade + Capability Disclosure ─────────────
+
+def check_protocol_downgrade(state: ScanState) -> None:
+    url, token = state.url, state.token
+    state.start_check("protocol_downgrade", "[30/31] Protocol version downgrade + capability/version disclosure")
+
+    OLD_VERSIONS = ["2023-01-01", "2022-11-05", "1.0", "0.1"]
+    for ver in OLD_VERSIONS:
+        r = rpc(url, "initialize", {
+            "protocolVersion": ver,
+            "capabilities": {},
+            "clientInfo": {"name": "mcppt-probe", "version": "1.0"},
+        }, token=token)
+        if r["status"] == 200 and "result" in r.get("body", {}):
+            state.finding(
+                "protocol_downgrade", "MEDIUM",
+                f"Server accepted deprecated protocol version: {ver}",
+                "Should reject unsupported versions with -32600 error. Downgrade may bypass newer security controls.",
+            )
+        else:
+            state.ok(f"Protocol {ver} rejected (HTTP {r['status']})")
+
+    # Capability & version disclosure via current protocol
+    _core._SESSION_ID = None
+    r2 = rpc(url, "initialize", {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "clientInfo": {"name": "mcppt-probe", "version": "1.0"},
+    }, token=token)
+    if r2["status"] == 200 and "result" in r2.get("body", {}):
+        result = r2["body"]["result"]
+        server_info = result.get("serverInfo", {})
+        caps = result.get("capabilities", {})
+        if server_info:
+            name_val = server_info.get("name", "")
+            ver_val = server_info.get("version", "")
+            state.finding(
+                "protocol_downgrade", "LOW",
+                f"Server version/name disclosed in initialize: {name_val} {ver_val}",
+                "serverInfo in initialize response fingerprints the MCP framework version — aids targeted attacks.",
+            )
+        else:
+            state.ok("No serverInfo disclosed in initialize")
+        if caps:
+            state.info(f"Server capabilities declared: {list(caps.keys())}")
+            if "sampling" in caps:
+                state.finding(
+                    "protocol_downgrade", "HIGH",
+                    "Server advertises 'sampling' capability",
+                    "LLM callback capability exposed — attacker can use this to proxy AI requests through the server.",
+                )
+    _core._SESSION_ID = None
+    state.finish_check()
+
+
+# ── Check 31: JSON-RPC Batch + Method Injection ───────────────────────────────
+
+def check_batch_injection(state: ScanState, tools: list) -> None:
+    url, token = state.url, state.token
+    state.start_check("batch_injection", "[31/31] JSON-RPC batch requests + unusual method names")
+
+    # Test 1: batch array of identical calls
+    batch = [
+        {"jsonrpc": "2.0", "id": i, "method": "tools/list", "params": {}}
+        for i in range(1, 4)
+    ]
+    hdrs: dict[str, str] = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+    if token:
+        hdrs["Authorization"] = f"Bearer {token}"
+    try:
+        resp = _core._SESSION.post(url, json=batch, headers=hdrs, timeout=15)
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+                if isinstance(data, list) and len(data) > 0:
+                    state.finding(
+                        "batch_injection", "MEDIUM",
+                        f"JSON-RPC batch accepted — {len(data)} responses returned",
+                        "Batch mode allows multiple tool calls in one HTTP request — bypasses per-request rate limits.",
+                    )
+                else:
+                    state.info("Batch returned non-array body — may not be fully supported")
+            except Exception:
+                state.info("Batch: non-JSON response body")
+        else:
+            state.ok(f"Batch request rejected (HTTP {resp.status_code})")
+    except Exception as e:
+        state.info(f"Batch test error: {str(e)[:60]}")
+
+    # Test 2: unusual method names (path traversal / prototype pollution)
+    weird_methods = [
+        "../../../etc/passwd",
+        "__proto__",
+        "constructor",
+        "admin.reset",
+        "tools/../admin/list",
+    ]
+    for method in weird_methods[:3]:
+        r = rpc(url, method, {}, token=token)
+        if r["status"] == 200 and "result" in r.get("body", {}):
+            state.finding(
+                "batch_injection", "HIGH",
+                f"Unusual method name accepted: '{method}'",
+                "Server returned result for non-standard method — possible method injection / routing bypass.",
+            )
+            break
+    else:
+        state.ok("Unusual method names properly rejected")
+
+    # Test 3: missing id field (notification format — server should not respond)
+    notif = {"jsonrpc": "2.0", "method": "tools/list", "params": {}}
+    try:
+        resp2 = _core._SESSION.post(url, json=notif, headers=hdrs, timeout=8)
+        if resp2.status_code == 200 and resp2.text.strip():
+            try:
+                body2 = resp2.json()
+                if "result" in body2 or ("tools" in str(body2)):
+                    state.finding(
+                        "batch_injection", "LOW",
+                        "Server responded to JSON-RPC notification (no id field)",
+                        "Notifications (no 'id') should not receive a response — server sends unsolicited output.",
+                    )
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    state.finish_check()
+
+
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
 ALL_CHECKS = [
@@ -1663,6 +1779,7 @@ ALL_CHECKS = [
     "cmd_injection", "path_traversal", "jwt_audit", "oauth_discovery",
     "secret_scan", "tool_shadowing",
     "sampling", "schema_leak",
+    "http_method_confusion", "protocol_downgrade", "batch_injection",
 ]
 
 
@@ -1687,34 +1804,36 @@ def run_scan(state: ScanState, checks: list) -> None:
     if run_all or "enum" in checks:
         tools = check_enum(state)
 
-    _maybe("auth",             check_auth,             state, tools, needs_token=True)
-    _maybe("idor",             check_idor,             state, tools)
-    _maybe("injection",        check_injection,        state, tools, needs_token=True)
-    _maybe("schema",           check_schema,           state, tools, needs_token=True)
-    _maybe("ssrf",             check_ssrf,             state, tools, needs_token=True)
-    _maybe("publish",          check_publish,          state, tools, needs_token=True)
-    _maybe("rate",             check_rate,             state)
-    _maybe("stored",           check_stored,           state, tools, needs_token=True)
-    _maybe("scope",            check_scope,            state, tools, needs_token=True)
-    _maybe("replay",           check_replay,           state, tools)
-    _maybe("context_overflow", check_context_overflow, state, tools)
-    _maybe("poison_all",       check_poison_all,       state, tools, needs_token=True)
-    _maybe("tenant",           check_tenant,           state, tools, needs_token=True)
-    _maybe("session",          check_session,          state)
-    _maybe("rug_pull",         check_rug_pull,         state, tools)
-    # v2.2 checks
-    _maybe("headers",          check_headers,          state)
-    _maybe("error_disclosure", check_error_disclosure, state)
-    _maybe("tool_poisoning",   check_tool_poisoning,   state, tools)
-    _maybe("resources",        check_resources,        state)
-    _maybe("cmd_injection",    check_cmd_injection,    state, tools, needs_token=True)
-    _maybe("path_traversal",   check_path_traversal,   state, tools, needs_token=True)
-    _maybe("jwt_audit",        check_jwt_audit,        state)
-    _maybe("oauth_discovery",  check_oauth_discovery,  state)
-    _maybe("secret_scan",      check_secret_scan,      state, tools)
-    _maybe("tool_shadowing",   check_tool_shadowing,   state, tools)
-    _maybe("sampling",         check_sampling,         state)
-    _maybe("schema_leak",      check_schema_leak,      state, tools)
+    _maybe("auth",                  check_auth,                  state, tools, needs_token=True)
+    _maybe("idor",                  check_idor,                  state, tools)
+    _maybe("injection",             check_injection,             state, tools, needs_token=True)
+    _maybe("schema",                check_schema,                state, tools, needs_token=True)
+    _maybe("ssrf",                  check_ssrf,                  state, tools, needs_token=True)
+    _maybe("publish",               check_publish,               state, tools, needs_token=True)
+    _maybe("rate",                  check_rate,                  state)
+    _maybe("stored",                check_stored,                state, tools, needs_token=True)
+    _maybe("scope",                 check_scope,                 state, tools, needs_token=True)
+    _maybe("replay",                check_replay,                state, tools)
+    _maybe("context_overflow",      check_context_overflow,      state, tools)
+    _maybe("poison_all",            check_poison_all,            state, tools, needs_token=True)
+    _maybe("tenant",                check_tenant,                state, tools, needs_token=True)
+    _maybe("session",               check_session,               state)
+    _maybe("rug_pull",              check_rug_pull,              state, tools)
+    _maybe("headers",               check_headers,               state)
+    _maybe("error_disclosure",      check_error_disclosure,      state)
+    _maybe("tool_poisoning",        check_tool_poisoning,        state, tools)
+    _maybe("resources",             check_resources,             state)
+    _maybe("cmd_injection",         check_cmd_injection,         state, tools, needs_token=True)
+    _maybe("path_traversal",        check_path_traversal,        state, tools, needs_token=True)
+    _maybe("jwt_audit",             check_jwt_audit,             state)
+    _maybe("oauth_discovery",       check_oauth_discovery,       state)
+    _maybe("secret_scan",           check_secret_scan,           state, tools)
+    _maybe("tool_shadowing",        check_tool_shadowing,        state, tools)
+    _maybe("sampling",              check_sampling,              state)
+    _maybe("schema_leak",           check_schema_leak,           state, tools)
+    _maybe("http_method_confusion", check_http_method_confusion, state)
+    _maybe("protocol_downgrade",    check_protocol_downgrade,    state)
+    _maybe("batch_injection",       check_batch_injection,       state, tools)
 
     state.elapsed = time.time() - start
     state.done = True

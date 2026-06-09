@@ -1,6 +1,7 @@
 # Core — required for the interactive shell and demo server
 rich>=13.0
 flask>=3.0
+requests>=2.28.0
 
 # Optional — AI analysis (ai claude / ai openai commands)
 # pip install mcppt[ai]

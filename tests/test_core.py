@@ -96,17 +96,17 @@ def test_is_auth_error_false():
 def test_configure_no_verify():
     import mcppt.core as core
     configure(no_verify=True)
-    assert core._SSL_CTX is not None
+    assert core._SESSION.verify is False
     configure(no_verify=False)
-    assert core._SSL_CTX is None
+    assert core._SESSION.verify is True
 
 
 def test_configure_proxy():
     import mcppt.core as core
     configure(proxy="http://127.0.0.1:8080")
-    assert core._PROXY_HANDLER is not None
+    assert core._SESSION.proxies.get("http") == "http://127.0.0.1:8080"
     configure(proxy=None)
-    assert core._PROXY_HANDLER is None
+    assert not core._SESSION.proxies
 
 
 # ── reset_session ─────────────────────────────────────────────────────────────
