@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MCPTROTTER Smoke Test — v2.3
+MCPTROTTER Smoke Test — v3.0
 =============================
 Starts the vuln_server, runs MCPTROTTER against it, asserts expected findings.
 
@@ -128,7 +128,7 @@ EXPECTED = [
 def main():
     print()
     print(f"{BOLD}{'=' * 58}{RESET}")
-    print(f"{BOLD}  MCPTROTTER Smoke Test  v2.3{RESET}")
+    print(f"{BOLD}  MCPTROTTER Smoke Test  v3.0{RESET}")
     print(f"{BOLD}{'=' * 58}{RESET}")
     print()
 

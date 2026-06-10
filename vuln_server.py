@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-MCPTROTTER Vulnerable Demo Server — v2.3
+MCPTROTTER Vulnerable Demo Server — v3.0
 =========================================
-A deliberately insecure MCP server that fires ALL 28 MCPTROTTER checks.
+A deliberately insecure MCP server that fires ALL 31 MCPTROTTER checks.
 Safe to run locally: simulated dangerous behaviors (no real command execution,
 no real file reads, no real URL fetching).
 
@@ -562,7 +562,7 @@ def mcp():
 if __name__ == "__main__":
     print()
     print("=" * 62)
-    print("  MCPTROTTER Vulnerable Demo Server  v2.3")
+    print("  MCPTROTTER Vulnerable Demo Server  v3.0")
     print("  URL  : http://127.0.0.1:8888/mcp")
     print("  Token: valid-token-abc123")
     print("  Token2: other-token-xyz789")

@@ -193,7 +193,7 @@ def main() -> None:
     _ensure_utf8()
     parser = argparse.ArgumentParser(
         prog="mcppt",
-        description="MCPTROTTER v2.3 — MCP Pentest Tool  |  28 automated security checks",
+        description="MCPTROTTER v3.0 — MCP Pentest Tool  |  31 automated security checks",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=EPILOG,
     )
