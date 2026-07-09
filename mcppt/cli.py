@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from .core import configure, mcp_init, rpc
@@ -19,11 +20,12 @@ CHECKS = [
 
 EPILOG = """
 commands:
-  scan        Run all/selected security checks with live TUI
-  list        Enumerate tools and parameter schemas
-  call        Call a single tool with custom JSON args
-  shell       Launch interactive REPL (default when run with no args)
-  serve-mcp   Expose MCPTROTTER itself as an MCP server
+  scan               Run all/selected security checks with live TUI
+  list               Enumerate tools and parameter schemas
+  call               Call a single tool with custom JSON args
+  shell              Launch interactive REPL (default when run with no args)
+  serve-mcp          Expose MCPTROTTER itself as an MCP server
+  install-burp-ext   Copy the Burp Suite extension file to a directory
 
 examples:
   mcppt                                               <- interactive shell
@@ -34,6 +36,8 @@ examples:
   mcppt list --url https://target.com/mcp --token eyJ...
   mcppt call --url https://target.com/mcp --token eyJ... --tool get_user --args '{"id":1}'
   mcppt serve-mcp --port 8899
+  mcppt install-burp-ext                              <- copies mcppt_burp.py to ./
+  mcppt install-burp-ext --dir ~/burp/extensions
 """
 
 
@@ -189,11 +193,37 @@ def cmd_serve_mcp(args: argparse.Namespace) -> None:
     serve(port=args.port)
 
 
+def cmd_install_burp_ext(args: argparse.Namespace) -> None:
+    import shutil
+
+    src = os.path.join(os.path.dirname(__file__), "burp_ext.py")
+    dest_dir = os.path.abspath(args.dir or ".")
+    dest = os.path.join(dest_dir, "mcppt_burp.py")
+
+    if not os.path.isfile(src):
+        print(f"ERROR: burp_ext.py not found in mcppt package at {src}", file=sys.stderr)
+        sys.exit(1)
+
+    shutil.copy2(src, dest)
+    print(f"Burp extension saved → {dest}")
+    print()
+    print("Load in Burp Suite:")
+    print("  1. Extender → Options → Python Environment")
+    print("     Set Jython standalone JAR path")
+    print("     (download: https://repo1.maven.org/maven2/org/python/jython-standalone/)")
+    print()
+    print("  2. Extender → Extensions → Add")
+    print("     Extension type : Python")
+    print("     Extension file : " + dest)
+    print()
+    print("  The MCPTROTTER tab will appear in Burp's main tab bar.")
+
+
 def main() -> None:
     _ensure_utf8()
     parser = argparse.ArgumentParser(
         prog="mcppt",
-        description="MCPTROTTER v3.0 — MCP Pentest Tool  |  31 automated security checks",
+        description="MCPTROTTER v3.1 — MCP Pentest Tool  |  31 checks + Burp Suite extension",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=EPILOG,
     )
@@ -225,6 +255,10 @@ def main() -> None:
     p_serve = sub.add_parser("serve-mcp", help="Expose MCPTROTTER as an MCP server")
     p_serve.add_argument("--port", type=int, default=8899, help="Port to listen on (default: 8899)")
 
+    # install-burp-ext
+    p_burp = sub.add_parser("install-burp-ext", help="Copy Burp Suite extension file to a directory")
+    p_burp.add_argument("--dir", default=None, help="Destination directory (default: current dir)")
+
     args = parser.parse_args()
 
     # default: no subcommand → launch interactive shell
@@ -233,11 +267,12 @@ def main() -> None:
         return
 
     dispatch = {
-        "scan":      cmd_scan,
-        "list":      cmd_list,
-        "call":      cmd_call,
-        "shell":     cmd_shell,
-        "serve-mcp": cmd_serve_mcp,
+        "scan":             cmd_scan,
+        "list":             cmd_list,
+        "call":             cmd_call,
+        "shell":            cmd_shell,
+        "serve-mcp":        cmd_serve_mcp,
+        "install-burp-ext": cmd_install_burp_ext,
     }
     dispatch[args.command](args)
 

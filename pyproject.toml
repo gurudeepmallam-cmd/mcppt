@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcppt"
-version = "3.0.0"
-description = "MCPTROTTER — MCP Security Framework: 31 automated checks + manual exploration shell"
+version = "3.1.0"
+description = "MCPTROTTER — MCP Security Framework: 31 checks + Burp Suite extension + manual exploration shell"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
