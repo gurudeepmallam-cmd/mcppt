@@ -190,7 +190,7 @@ def cmd_shell(_args=None) -> None:
 
 def cmd_serve_mcp(args: argparse.Namespace) -> None:
     from .server import serve
-    serve(port=args.port)
+    serve(port=args.port, stdio=args.stdio)
 
 
 def cmd_install_burp_ext(args: argparse.Namespace) -> None:
@@ -253,7 +253,9 @@ def main() -> None:
 
     # serve-mcp
     p_serve = sub.add_parser("serve-mcp", help="Expose MCPTROTTER as an MCP server")
-    p_serve.add_argument("--port", type=int, default=8899, help="Port to listen on (default: 8899)")
+    p_serve.add_argument("--port",  type=int, default=8899, help="HTTP server port (default: 8899)")
+    p_serve.add_argument("--stdio", action="store_true",
+                         help="Use stdio transport (for Claude Code .mcp.json integration)")
 
     # install-burp-ext
     p_burp = sub.add_parser("install-burp-ext", help="Copy Burp Suite extension file to a directory")
