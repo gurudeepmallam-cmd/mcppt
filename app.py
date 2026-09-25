@@ -91,28 +91,79 @@ SEV_COLORS  = {"CRITICAL": "#da3633", "HIGH": "#d29922", "MEDIUM": "#9e6a03", "L
 SEV_CLASS   = {"CRITICAL": "critical", "HIGH": "high", "MEDIUM": "medium", "LOW": "low"}
 
 ALL_CHECKS = [
-    "enum", "auth", "idor", "injection", "schema", "ssrf", "publish",
-    "rate", "stored", "scope", "replay", "context_overflow",
-    "poison_all", "tenant", "session", "rug_pull",
+    # Auth & Session (original)
+    "enum", "auth", "idor", "scope", "replay", "session", "tenant", "rate",
+    # Injection (original)
+    "injection", "schema", "stored", "context_overflow", "poison_all",
+    "cmd_injection", "path_traversal", "ssrf",
+    # Tool Poisoning (original)
+    "publish", "rug_pull", "tool_poisoning", "tool_shadowing",
+    "sampling", "resources", "secret_scan",
+    # Protocol/Headers (original)
+    "headers", "error_disclosure", "schema_leak", "jwt_audit",
+    "oauth_discovery", "http_method_confusion", "protocol_downgrade",
+    "batch_injection",
+    # TLS / Transport (new surface)
+    "tls_cert", "tls_version", "transport_plaintext", "tls_cipher",
+    # Client-side (new surface)
+    "client_annotations", "client_context_injection",
+    "client_init_injection", "client_credential_exposure",
+    # Sandboxing (new surface)
+    "sandbox_env_leak", "sandbox_process_info",
+    "sandbox_network_scope", "sandbox_filesystem_scope",
 ]
 
 CHECK_DESC = {
+    # Auth & Session
     "enum":             "tools/list accessible without auth",
     "auth":             "Tool calls succeed with no/invalid token",
     "idor":             "Cross-user resource access (needs token2)",
-    "injection":        "Prompt injection payloads reflected",
-    "schema":           "Type confusion / null bypass",
-    "ssrf":             "Cloud metadata URLs fetched via tool params",
-    "publish":          "Destructive tool without confirmation gate",
-    "rate":             "No rate limiting on tool calls",
-    "stored":           "Stored prompt injection: write→read unescaped",
     "scope":            "Read-only token reaches write tools",
     "replay":           "Same request accepted twice (no nonce)",
+    "session":          "Weak/sequential session IDs (CVE-2025-6515)",
+    "tenant":           "Token2 reads token1 data (isolation broken)",
+    "rate":             "No rate limiting on tool calls",
+    # Injection
+    "injection":        "Prompt injection payloads reflected",
+    "schema":           "Type confusion / null bypass",
+    "stored":           "Stored prompt injection: write→read unescaped",
     "context_overflow": "100K-char payload → LLM context truncation",
     "poison_all":       "Injection in any response field (CyberArk)",
-    "tenant":           "Token2 reads token1 data (isolation broken)",
-    "session":          "Weak/sequential session IDs (CVE-2025-6515)",
+    "cmd_injection":    "OS command injection via tool params",
+    "path_traversal":   "Path traversal to sensitive files",
+    "ssrf":             "Cloud metadata URLs fetched via tool params",
+    # Tool Poisoning
+    "publish":          "Destructive tool without confirmation gate",
     "rug_pull":         "Tool descriptions change mid-session",
+    "tool_poisoning":   "Hidden Unicode/injection in tool description",
+    "tool_shadowing":   "Duplicate tool names or homoglyph confusion",
+    "sampling":         "sampling/createMessage without auth",
+    "resources":        "resources/list without auth",
+    "secret_scan":      "Credentials/API keys in tool responses",
+    # Protocol/Headers
+    "headers":              "CORS wildcard + missing security headers",
+    "error_disclosure":     "Stack trace / paths in error responses",
+    "schema_leak":          "Sensitive field names exposed in schema",
+    "jwt_audit":            "Weak JWT: alg:none, HS256, no exp",
+    "oauth_discovery":      "OAuth metadata endpoint exposed",
+    "http_method_confusion":"Non-POST HTTP methods accepted",
+    "protocol_downgrade":   "Server discloses old protocol support",
+    "batch_injection":      "JSON-RPC batch allows method injection",
+    # TLS / Transport (new)
+    "tls_cert":             "TLS cert expired / self-signed / mismatched",
+    "tls_version":          "TLS 1.0/1.1 accepted (deprecated)",
+    "transport_plaintext":  "HTTP-only — no TLS at all",
+    "tls_cipher":           "EXPORT/RC4/NULL cipher suites accepted",
+    # Client-side (new)
+    "client_annotations":        "Missing destructiveHint / readOnlyHint",
+    "client_context_injection":  "Injection text in tool results targets client LLM",
+    "client_init_injection":     "initialize instructions field injection (SPEC-1)",
+    "client_credential_exposure":"Credentials in initialize or tool responses",
+    # Sandboxing (new)
+    "sandbox_env_leak":          "Process env vars exposed via tool call",
+    "sandbox_process_info":      "/proc/self data accessible via tool call",
+    "sandbox_network_scope":     "Docker bridge / K8s internal SSRF via tool",
+    "sandbox_filesystem_scope":  "/etc/shadow / SSH keys / K8s tokens readable",
 }
 
 

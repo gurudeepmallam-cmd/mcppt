@@ -1,0 +1,827 @@
+{
+  "owasp_mcp_top10": {
+    "MCP1": "Prompt Injection",
+    "MCP2": "Excessive Permissions and Broken Access Control",
+    "MCP3": "Data Exfiltration via Tool Output",
+    "MCP4": "Insecure Tool Design",
+    "MCP5": "Server-Side Request Forgery (SSRF) via Tool Calls",
+    "MCP6": "Insecure Authentication and Session Management",
+    "MCP7": "Sensitive Data Exposure",
+    "MCP8": "Tool Confusion and Shadowing",
+    "MCP9": "Insufficient Logging and Auditing",
+    "MCP10": "Insecure Network Transport"
+  },
+  "mcp38_categories": {
+    "T1": "Prompt/Instruction Injection",
+    "T2": "Tool Poisoning (metadata manipulation)",
+    "T3": "Rug Pull (post-approval redefinition)",
+    "T4": "Authentication and Authorization bypass",
+    "T5": "Data Exfiltration",
+    "T6": "SSRF and Server-Side Network Attacks",
+    "T7": "Insecure Transport (TLS/plaintext)",
+    "T8": "Session Entropy and Fixation",
+    "T9": "Client-Side Context Injection",
+    "T10": "Sandboxing and Isolation Escape",
+    "T11": "Protocol Abuse (JSON-RPC level)",
+    "T12": "Information Disclosure",
+    "T13": "Cross-Tenant Data Exposure"
+  },
+  "coverage_map": [
+    {
+      "check": "enum",
+      "owasp": [
+        "MCP6"
+      ],
+      "mcp38": [
+        "T4"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "tools/list without auth"
+    },
+    {
+      "check": "auth",
+      "owasp": [
+        "MCP2",
+        "MCP6"
+      ],
+      "mcp38": [
+        "T4"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "tool call with no/invalid token"
+    },
+    {
+      "check": "scope",
+      "owasp": [
+        "MCP2"
+      ],
+      "mcp38": [
+        "T4"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "read-only token reaches write tools"
+    },
+    {
+      "check": "session",
+      "owasp": [
+        "MCP6"
+      ],
+      "mcp38": [
+        "T8"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "weak/sequential session IDs"
+    },
+    {
+      "check": "replay",
+      "owasp": [
+        "MCP6"
+      ],
+      "mcp38": [
+        "T4"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "no nonce/timestamp protection"
+    },
+    {
+      "check": "rate",
+      "owasp": [
+        "MCP4"
+      ],
+      "mcp38": [
+        "T11"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "no rate limiting"
+    },
+    {
+      "check": "jwt_audit",
+      "owasp": [
+        "MCP6"
+      ],
+      "mcp38": [
+        "T4"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "alg:none, HS256, no exp"
+    },
+    {
+      "check": "oauth_discovery",
+      "owasp": [
+        "MCP6"
+      ],
+      "mcp38": [
+        "T12"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "OAuth metadata exposure"
+    },
+    {
+      "check": "injection",
+      "owasp": [
+        "MCP1"
+      ],
+      "mcp38": [
+        "T1"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "prompt injection via string params"
+    },
+    {
+      "check": "stored",
+      "owasp": [
+        "MCP1"
+      ],
+      "mcp38": [
+        "T1"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "stored prompt injection write\u2192read"
+    },
+    {
+      "check": "context_overflow",
+      "owasp": [
+        "MCP1"
+      ],
+      "mcp38": [
+        "T1"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "100K-char context truncation"
+    },
+    {
+      "check": "poison_all",
+      "owasp": [
+        "MCP1"
+      ],
+      "mcp38": [
+        "T1"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "injection in all response fields"
+    },
+    {
+      "check": "cmd_injection",
+      "owasp": [
+        "MCP4"
+      ],
+      "mcp38": [
+        "T1"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "OS command injection"
+    },
+    {
+      "check": "path_traversal",
+      "owasp": [
+        "MCP4"
+      ],
+      "mcp38": [
+        "T1",
+        "T5"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "path traversal to filesystem"
+    },
+    {
+      "check": "tool_poisoning",
+      "owasp": [
+        "MCP8"
+      ],
+      "mcp38": [
+        "T2"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "Unicode steganography + injection in desc"
+    },
+    {
+      "check": "tool_shadowing",
+      "owasp": [
+        "MCP8"
+      ],
+      "mcp38": [
+        "T2"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "duplicate names + homoglyphs"
+    },
+    {
+      "check": "rug_pull",
+      "owasp": [
+        "MCP8"
+      ],
+      "mcp38": [
+        "T3"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "tool desc change mid-session"
+    },
+    {
+      "check": "publish",
+      "owasp": [
+        "MCP4"
+      ],
+      "mcp38": [
+        "T2"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "destructive tool without confirmation gate"
+    },
+    {
+      "check": "sampling",
+      "owasp": [
+        "MCP4"
+      ],
+      "mcp38": [
+        "T5"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "sampling/createMessage without auth"
+    },
+    {
+      "check": "resources",
+      "owasp": [
+        "MCP7"
+      ],
+      "mcp38": [
+        "T5"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "resources/list without auth"
+    },
+    {
+      "check": "secret_scan",
+      "owasp": [
+        "MCP7"
+      ],
+      "mcp38": [
+        "T5"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "credentials in tool responses"
+    },
+    {
+      "check": "idor",
+      "owasp": [
+        "MCP2"
+      ],
+      "mcp38": [
+        "T4"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "cross-user resource access"
+    },
+    {
+      "check": "tenant",
+      "owasp": [
+        "MCP2"
+      ],
+      "mcp38": [
+        "T13"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "cross-tenant data isolation failure"
+    },
+    {
+      "check": "ssrf",
+      "owasp": [
+        "MCP5"
+      ],
+      "mcp38": [
+        "T6"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "cloud metadata URL fetch"
+    },
+    {
+      "check": "schema",
+      "owasp": [
+        "MCP4"
+      ],
+      "mcp38": [
+        "T11"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "schema type bypass"
+    },
+    {
+      "check": "headers",
+      "owasp": [
+        "MCP10"
+      ],
+      "mcp38": [
+        "T7"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "CORS wildcard + missing security headers"
+    },
+    {
+      "check": "error_disclosure",
+      "owasp": [
+        "MCP7"
+      ],
+      "mcp38": [
+        "T12"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "stack trace / path in error"
+    },
+    {
+      "check": "schema_leak",
+      "owasp": [
+        "MCP7"
+      ],
+      "mcp38": [
+        "T12"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "sensitive field names in schema"
+    },
+    {
+      "check": "http_method_confusion",
+      "owasp": [
+        "MCP4"
+      ],
+      "mcp38": [
+        "T11"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "non-POST methods accepted"
+    },
+    {
+      "check": "protocol_downgrade",
+      "owasp": [
+        "MCP4",
+        "MCP10"
+      ],
+      "mcp38": [
+        "T11"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "old protocol version + capability disclosure"
+    },
+    {
+      "check": "batch_injection",
+      "owasp": [
+        "MCP4"
+      ],
+      "mcp38": [
+        "T11"
+      ],
+      "surface": "server",
+      "covered": true,
+      "notes": "JSON-RPC batch + method injection"
+    },
+    {
+      "check": "tls_cert",
+      "owasp": [
+        "MCP10"
+      ],
+      "mcp38": [
+        "T7"
+      ],
+      "surface": "tls",
+      "covered": true,
+      "notes": "expired/self-signed/mismatched cert"
+    },
+    {
+      "check": "tls_version",
+      "owasp": [
+        "MCP10"
+      ],
+      "mcp38": [
+        "T7"
+      ],
+      "surface": "tls",
+      "covered": true,
+      "notes": "TLS 1.0/1.1 acceptance + weak ciphers"
+    },
+    {
+      "check": "transport_plaintext",
+      "owasp": [
+        "MCP10"
+      ],
+      "mcp38": [
+        "T7"
+      ],
+      "surface": "tls",
+      "covered": true,
+      "notes": "HTTP plaintext endpoint"
+    },
+    {
+      "check": "tls_cipher",
+      "owasp": [
+        "MCP10"
+      ],
+      "mcp38": [
+        "T7"
+      ],
+      "surface": "tls",
+      "covered": true,
+      "notes": "EXPORT/RC4/NULL cipher suites"
+    },
+    {
+      "check": "client_annotations",
+      "owasp": [
+        "MCP4"
+      ],
+      "mcp38": [
+        "T9"
+      ],
+      "surface": "client",
+      "covered": true,
+      "notes": "missing destructiveHint / readOnlyHint"
+    },
+    {
+      "check": "client_context_injection",
+      "owasp": [
+        "MCP1"
+      ],
+      "mcp38": [
+        "T9"
+      ],
+      "surface": "client",
+      "covered": true,
+      "notes": "injection in tool results targeting client LLM"
+    },
+    {
+      "check": "client_init_injection",
+      "owasp": [
+        "MCP1"
+      ],
+      "mcp38": [
+        "T9"
+      ],
+      "surface": "client",
+      "covered": true,
+      "notes": "initialize instructions field injection (SPEC-1)"
+    },
+    {
+      "check": "client_credential_exposure",
+      "owasp": [
+        "MCP7"
+      ],
+      "mcp38": [
+        "T5",
+        "T9"
+      ],
+      "surface": "client",
+      "covered": true,
+      "notes": "credentials in initialize / tool responses"
+    },
+    {
+      "check": "sandbox_env_leak",
+      "owasp": [
+        "MCP7"
+      ],
+      "mcp38": [
+        "T10"
+      ],
+      "surface": "sandbox",
+      "covered": true,
+      "notes": "process environment variables exposed"
+    },
+    {
+      "check": "sandbox_process_info",
+      "owasp": [
+        "MCP7"
+      ],
+      "mcp38": [
+        "T10"
+      ],
+      "surface": "sandbox",
+      "covered": true,
+      "notes": "/proc/self data accessible"
+    },
+    {
+      "check": "sandbox_network_scope",
+      "owasp": [
+        "MCP5"
+      ],
+      "mcp38": [
+        "T10",
+        "T6"
+      ],
+      "surface": "sandbox",
+      "covered": true,
+      "notes": "Docker bridge / K8s internal SSRF"
+    },
+    {
+      "check": "sandbox_filesystem_scope",
+      "owasp": [
+        "MCP4"
+      ],
+      "mcp38": [
+        "T10"
+      ],
+      "surface": "sandbox",
+      "covered": true,
+      "notes": "chroot/jail escape via file read"
+    },
+    {
+      "check": "mcp_logging_audit",
+      "owasp": [
+        "MCP9"
+      ],
+      "mcp38": [],
+      "surface": "server",
+      "covered": false,
+      "notes": "No server-side audit log check \u2014 gap"
+    },
+    {
+      "check": "supply_chain",
+      "owasp": [
+        "MCP8"
+      ],
+      "mcp38": [
+        "T2"
+      ],
+      "surface": "server",
+      "covered": false,
+      "notes": "Malicious package in MCP server dependencies \u2014 gap"
+    },
+    {
+      "check": "mutual_tls",
+      "owasp": [
+        "MCP10"
+      ],
+      "mcp38": [
+        "T7"
+      ],
+      "surface": "tls",
+      "covered": false,
+      "notes": "mTLS client certificate enforcement \u2014 gap"
+    }
+  ],
+  "owasp_summary": {
+    "MCP1": {
+      "title": "Prompt Injection",
+      "covered": [
+        "injection",
+        "stored",
+        "context_overflow",
+        "poison_all",
+        "client_context_injection",
+        "client_init_injection"
+      ],
+      "gaps": []
+    },
+    "MCP2": {
+      "title": "Excessive Permissions and Broken Access Control",
+      "covered": [
+        "auth",
+        "scope",
+        "idor",
+        "tenant"
+      ],
+      "gaps": []
+    },
+    "MCP3": {
+      "title": "Data Exfiltration via Tool Output",
+      "covered": [],
+      "gaps": []
+    },
+    "MCP4": {
+      "title": "Insecure Tool Design",
+      "covered": [
+        "rate",
+        "cmd_injection",
+        "path_traversal",
+        "publish",
+        "sampling",
+        "schema",
+        "http_method_confusion",
+        "protocol_downgrade",
+        "batch_injection",
+        "client_annotations",
+        "sandbox_filesystem_scope"
+      ],
+      "gaps": []
+    },
+    "MCP5": {
+      "title": "Server-Side Request Forgery (SSRF) via Tool Calls",
+      "covered": [
+        "ssrf",
+        "sandbox_network_scope"
+      ],
+      "gaps": []
+    },
+    "MCP6": {
+      "title": "Insecure Authentication and Session Management",
+      "covered": [
+        "enum",
+        "auth",
+        "session",
+        "replay",
+        "jwt_audit",
+        "oauth_discovery"
+      ],
+      "gaps": []
+    },
+    "MCP7": {
+      "title": "Sensitive Data Exposure",
+      "covered": [
+        "resources",
+        "secret_scan",
+        "error_disclosure",
+        "schema_leak",
+        "client_credential_exposure",
+        "sandbox_env_leak",
+        "sandbox_process_info"
+      ],
+      "gaps": []
+    },
+    "MCP8": {
+      "title": "Tool Confusion and Shadowing",
+      "covered": [
+        "tool_poisoning",
+        "tool_shadowing",
+        "rug_pull"
+      ],
+      "gaps": [
+        "supply_chain"
+      ]
+    },
+    "MCP9": {
+      "title": "Insufficient Logging and Auditing",
+      "covered": [],
+      "gaps": [
+        "mcp_logging_audit"
+      ]
+    },
+    "MCP10": {
+      "title": "Insecure Network Transport",
+      "covered": [
+        "headers",
+        "protocol_downgrade",
+        "tls_cert",
+        "tls_version",
+        "transport_plaintext",
+        "tls_cipher"
+      ],
+      "gaps": [
+        "mutual_tls"
+      ]
+    }
+  },
+  "mcp38_summary": {
+    "T1": {
+      "title": "Prompt/Instruction Injection",
+      "covered": [
+        "injection",
+        "stored",
+        "context_overflow",
+        "poison_all",
+        "cmd_injection",
+        "path_traversal"
+      ],
+      "gaps": []
+    },
+    "T2": {
+      "title": "Tool Poisoning (metadata manipulation)",
+      "covered": [
+        "tool_poisoning",
+        "tool_shadowing",
+        "publish"
+      ],
+      "gaps": [
+        "supply_chain"
+      ]
+    },
+    "T3": {
+      "title": "Rug Pull (post-approval redefinition)",
+      "covered": [
+        "rug_pull"
+      ],
+      "gaps": []
+    },
+    "T4": {
+      "title": "Authentication and Authorization bypass",
+      "covered": [
+        "enum",
+        "auth",
+        "scope",
+        "replay",
+        "jwt_audit",
+        "idor"
+      ],
+      "gaps": []
+    },
+    "T5": {
+      "title": "Data Exfiltration",
+      "covered": [
+        "path_traversal",
+        "sampling",
+        "resources",
+        "secret_scan",
+        "client_credential_exposure"
+      ],
+      "gaps": []
+    },
+    "T6": {
+      "title": "SSRF and Server-Side Network Attacks",
+      "covered": [
+        "ssrf",
+        "sandbox_network_scope"
+      ],
+      "gaps": []
+    },
+    "T7": {
+      "title": "Insecure Transport (TLS/plaintext)",
+      "covered": [
+        "headers",
+        "tls_cert",
+        "tls_version",
+        "transport_plaintext",
+        "tls_cipher"
+      ],
+      "gaps": [
+        "mutual_tls"
+      ]
+    },
+    "T8": {
+      "title": "Session Entropy and Fixation",
+      "covered": [
+        "session"
+      ],
+      "gaps": []
+    },
+    "T9": {
+      "title": "Client-Side Context Injection",
+      "covered": [
+        "client_annotations",
+        "client_context_injection",
+        "client_init_injection",
+        "client_credential_exposure"
+      ],
+      "gaps": []
+    },
+    "T10": {
+      "title": "Sandboxing and Isolation Escape",
+      "covered": [
+        "sandbox_env_leak",
+        "sandbox_process_info",
+        "sandbox_network_scope",
+        "sandbox_filesystem_scope"
+      ],
+      "gaps": []
+    },
+    "T11": {
+      "title": "Protocol Abuse (JSON-RPC level)",
+      "covered": [
+        "rate",
+        "schema",
+        "http_method_confusion",
+        "protocol_downgrade",
+        "batch_injection"
+      ],
+      "gaps": []
+    },
+    "T12": {
+      "title": "Information Disclosure",
+      "covered": [
+        "oauth_discovery",
+        "error_disclosure",
+        "schema_leak"
+      ],
+      "gaps": []
+    },
+    "T13": {
+      "title": "Cross-Tenant Data Exposure",
+      "covered": [
+        "tenant"
+      ],
+      "gaps": []
+    }
+  }
+}

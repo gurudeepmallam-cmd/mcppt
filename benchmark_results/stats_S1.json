@@ -1,0 +1,372 @@
+{
+  "server_id": "S1",
+  "overall": {
+    "TP": 38,
+    "FP": 0,
+    "FN": 0,
+    "TN": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "fpr": null
+  },
+  "per_surface": {
+    "auth_session": {
+      "TP": 8,
+      "FP": 0,
+      "FN": 0,
+      "TN": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "fpr": null,
+      "f1": 1.0
+    },
+    "injection": {
+      "TP": 8,
+      "FP": 0,
+      "FN": 0,
+      "TN": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "fpr": null,
+      "f1": 1.0
+    },
+    "tool_poisoning": {
+      "TP": 7,
+      "FP": 0,
+      "FN": 0,
+      "TN": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "fpr": null,
+      "f1": 1.0
+    },
+    "protocol": {
+      "TP": 7,
+      "FP": 0,
+      "FN": 0,
+      "TN": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "fpr": null,
+      "f1": 1.0
+    },
+    "tls_transport": {
+      "TP": 1,
+      "FP": 0,
+      "FN": 0,
+      "TN": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "fpr": null,
+      "f1": 1.0
+    },
+    "client_side": {
+      "TP": 4,
+      "FP": 0,
+      "FN": 0,
+      "TN": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "fpr": null,
+      "f1": 1.0
+    },
+    "sandboxing": {
+      "TP": 4,
+      "FP": 0,
+      "FN": 0,
+      "TN": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "fpr": null,
+      "f1": 1.0
+    }
+  },
+  "per_check": {
+    "enum": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "MEDIUM",
+      "notes": "tools/list accessible without auth"
+    },
+    "auth": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "get_notes / fetch_url callable without token"
+    },
+    "idor": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "HIGH",
+      "notes": "get_user returns same data to all tokens"
+    },
+    "injection": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "HIGH",
+      "notes": "search reflects payload verbatim"
+    },
+    "schema": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "MEDIUM",
+      "notes": "all tools accept null / oversized values"
+    },
+    "ssrf": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "fetch_url returns cloud metadata for 169.254.x"
+    },
+    "publish": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "publish_record has no confirmation gate"
+    },
+    "rate": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "LOW",
+      "notes": "no rate limiting"
+    },
+    "stored": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "save_note / get_notes injection chain"
+    },
+    "scope": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "HIGH",
+      "notes": "JWT has no scope claim"
+    },
+    "replay": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "HIGH",
+      "notes": "same req_id accepted indefinitely"
+    },
+    "context_overflow": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "HIGH",
+      "notes": "100K-char payload accepted"
+    },
+    "poison_all": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "marker appears in all response fields"
+    },
+    "tenant": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "notes shared across all tokens"
+    },
+    "session": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "HIGH",
+      "notes": "sequential integer session IDs from 100"
+    },
+    "rug_pull": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "tool description changes on alternate calls"
+    },
+    "headers": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "HIGH",
+      "notes": "CORS wildcard + missing security headers"
+    },
+    "error_disclosure": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "MEDIUM",
+      "notes": "stack trace in error response"
+    },
+    "tool_poisoning": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "zero-width Unicode in admin_tool description"
+    },
+    "resources": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "HIGH",
+      "notes": "resources/list without auth, 3 resources"
+    },
+    "cmd_injection": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "run_command returns uid= for ; id payload"
+    },
+    "path_traversal": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "read_file returns /etc/passwd for ../ payload"
+    },
+    "jwt_audit": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "MEDIUM",
+      "notes": "HS256 no-exp JWT from /oauth/token"
+    },
+    "oauth_discovery": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "LOW",
+      "notes": "/.well-known/openid-configuration exposed"
+    },
+    "secret_scan": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "get_config returns fake AWS key"
+    },
+    "tool_shadowing": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "duplicate tool name admin_tool"
+    },
+    "sampling": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "sampling/createMessage no auth"
+    },
+    "schema_leak": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "MEDIUM",
+      "notes": "get_user schema has internal_user_id + role enum"
+    },
+    "http_method_confusion": {
+      "result": "N/A",
+      "reason": "not applicable to this server type"
+    },
+    "protocol_downgrade": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "LOW",
+      "notes": "serverInfo name+version disclosed"
+    },
+    "batch_injection": {
+      "result": "N/A",
+      "reason": "not applicable to this server type"
+    },
+    "tls_cert": {
+      "result": "N/A",
+      "reason": "not applicable to this server type"
+    },
+    "tls_version": {
+      "result": "N/A",
+      "reason": "not applicable to this server type"
+    },
+    "transport_plaintext": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "HTTP-only endpoint, no redirect to HTTPS"
+    },
+    "tls_cipher": {
+      "result": "N/A",
+      "reason": "not applicable to this server type"
+    },
+    "client_annotations": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "MEDIUM",
+      "notes": "delete_record missing destructiveHint; list_records missing readOnlyHint"
+    },
+    "client_context_injection": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "get_status returns prompt injection text"
+    },
+    "client_init_injection": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "initialize instructions contains IGNORE PREVIOUS + zero-width Unicode"
+    },
+    "client_credential_exposure": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "get_config returns AWS key in tool response"
+    },
+    "sandbox_env_leak": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "run_command returns PATH/HOME/SECRET_KEY on $(env)"
+    },
+    "sandbox_process_info": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "HIGH",
+      "notes": "read_file returns /proc/self/status content"
+    },
+    "sandbox_network_scope": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "fetch_url returns docker/kubernetes data for 172.17.x"
+    },
+    "sandbox_filesystem_scope": {
+      "result": "TP",
+      "present": true,
+      "detected": true,
+      "severity": "CRITICAL",
+      "notes": "read_file returns /etc/shadow, SSH keys, K8s tokens"
+    }
+  }
+}

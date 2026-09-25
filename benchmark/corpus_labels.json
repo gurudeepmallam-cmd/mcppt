@@ -1,0 +1,214 @@
+{
+  "_meta": {
+    "description": "Ground-truth vulnerability labels for the 9-server benchmark corpus.",
+    "schema": {
+      "server_id": "S1–S9",
+      "type": "seeded | real-world",
+      "surface": "server | host-app | sandboxed",
+      "ground_truth": {
+        "<check_name>": {
+          "present": true,
+          "severity": "CRITICAL | HIGH | MEDIUM | LOW | N/A",
+          "notes": "optional comment"
+        }
+      }
+    },
+    "check_surfaces": {
+      "original_31": ["enum","auth","idor","injection","schema","ssrf","publish","rate","stored","scope","replay","context_overflow","poison_all","tenant","session","rug_pull","headers","error_disclosure","tool_poisoning","resources","cmd_injection","path_traversal","jwt_audit","oauth_discovery","secret_scan","tool_shadowing","sampling","schema_leak","http_method_confusion","protocol_downgrade","batch_injection"],
+      "tls_transport": ["tls_cert","tls_version","transport_plaintext","tls_cipher"],
+      "client_side": ["client_annotations","client_context_injection","client_init_injection","client_credential_exposure"],
+      "sandboxing": ["sandbox_env_leak","sandbox_process_info","sandbox_network_scope","sandbox_filesystem_scope"]
+    }
+  },
+
+  "S1": {
+    "server_id": "S1",
+    "name": "Seeded Reference Server (benchmark/seeded_server.py)",
+    "type": "seeded",
+    "surface": "server",
+    "port": 8899,
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZW5jaHRlc3QtdXNlciIsImlhdCI6MTcwMDAwMDAwMH0.DAI1o8a9Vmw7jxdlwO2vfcwEhiAXdNgPHkTutzd0wE8",
+    "token2": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiZW5jaHRlc3QtdXNlcjIiLCJpYXQiOjE3MDAwMDAwMDB9.H-oGRnxlixWU_-8YyO9R67PKz7PZmh0JOf4o2q8mJYQ",
+    "notes": "Deliberately vulnerable to all 43 checks. HTTP-only (transport_plaintext fires). Used as primary ground-truth anchor.",
+    "ground_truth": {
+      "enum":                    {"present": true,  "severity": "MEDIUM",   "notes": "tools/list accessible without auth"},
+      "auth":                    {"present": true,  "severity": "CRITICAL", "notes": "get_notes / fetch_url callable without token"},
+      "idor":                    {"present": true,  "severity": "HIGH",     "notes": "get_user returns same data to all tokens"},
+      "injection":               {"present": true,  "severity": "HIGH",     "notes": "search reflects payload verbatim"},
+      "schema":                  {"present": true,  "severity": "MEDIUM",   "notes": "all tools accept null / oversized values"},
+      "ssrf":                    {"present": true,  "severity": "CRITICAL", "notes": "fetch_url returns cloud metadata for 169.254.x"},
+      "publish":                 {"present": true,  "severity": "CRITICAL", "notes": "publish_record has no confirmation gate"},
+      "rate":                    {"present": true,  "severity": "LOW",      "notes": "no rate limiting"},
+      "stored":                  {"present": true,  "severity": "CRITICAL", "notes": "save_note / get_notes injection chain"},
+      "scope":                   {"present": true,  "severity": "HIGH",     "notes": "JWT has no scope claim"},
+      "replay":                  {"present": true,  "severity": "HIGH",     "notes": "same req_id accepted indefinitely"},
+      "context_overflow":        {"present": true,  "severity": "HIGH",     "notes": "100K-char payload accepted"},
+      "poison_all":              {"present": true,  "severity": "CRITICAL", "notes": "marker appears in all response fields"},
+      "tenant":                  {"present": true,  "severity": "CRITICAL", "notes": "notes shared across all tokens"},
+      "session":                 {"present": true,  "severity": "HIGH",     "notes": "sequential integer session IDs from 100"},
+      "rug_pull":                {"present": true,  "severity": "CRITICAL", "notes": "tool description changes on alternate calls"},
+      "headers":                 {"present": true,  "severity": "HIGH",     "notes": "CORS wildcard + missing security headers"},
+      "error_disclosure":        {"present": true,  "severity": "MEDIUM",   "notes": "stack trace in error response"},
+      "tool_poisoning":          {"present": true,  "severity": "CRITICAL", "notes": "zero-width Unicode in admin_tool description"},
+      "resources":               {"present": true,  "severity": "HIGH",     "notes": "resources/list without auth, 3 resources"},
+      "cmd_injection":           {"present": true,  "severity": "CRITICAL", "notes": "run_command returns uid= for ; id payload"},
+      "path_traversal":          {"present": true,  "severity": "CRITICAL", "notes": "read_file returns /etc/passwd for ../ payload"},
+      "jwt_audit":               {"present": true,  "severity": "MEDIUM",   "notes": "HS256 no-exp JWT from /oauth/token"},
+      "oauth_discovery":         {"present": true,  "severity": "LOW",      "notes": "/.well-known/openid-configuration exposed"},
+      "secret_scan":             {"present": true,  "severity": "CRITICAL", "notes": "get_config returns fake AWS key"},
+      "tool_shadowing":          {"present": true,  "severity": "CRITICAL", "notes": "duplicate tool name admin_tool"},
+      "sampling":                {"present": true,  "severity": "CRITICAL", "notes": "sampling/createMessage no auth"},
+      "schema_leak":             {"present": true,  "severity": "MEDIUM",   "notes": "get_user schema has internal_user_id + role enum"},
+      "http_method_confusion":   {"present": false, "severity": "N/A",      "notes": "Flask returns 405 for non-POST by default"},
+      "protocol_downgrade":      {"present": true,  "severity": "LOW",      "notes": "serverInfo name+version disclosed"},
+      "batch_injection":         {"present": false, "severity": "N/A",      "notes": "Flask does not natively parse batch"},
+      "tls_cert":                {"present": false, "severity": "N/A",      "notes": "HTTP server — cert check skipped"},
+      "tls_version":             {"present": false, "severity": "N/A",      "notes": "HTTP server — TLS version check skipped"},
+      "transport_plaintext":     {"present": true,  "severity": "CRITICAL", "notes": "HTTP-only endpoint, no redirect to HTTPS"},
+      "tls_cipher":              {"present": false, "severity": "N/A",      "notes": "HTTP server — cipher check skipped"},
+      "client_annotations":      {"present": true,  "severity": "MEDIUM",   "notes": "delete_record missing destructiveHint; list_records missing readOnlyHint"},
+      "client_context_injection":{"present": true,  "severity": "CRITICAL", "notes": "get_status returns prompt injection text"},
+      "client_init_injection":   {"present": true,  "severity": "CRITICAL", "notes": "initialize instructions contains IGNORE PREVIOUS + zero-width Unicode"},
+      "client_credential_exposure":{"present": true,"severity": "CRITICAL", "notes": "get_config returns AWS key in tool response"},
+      "sandbox_env_leak":        {"present": true,  "severity": "CRITICAL", "notes": "run_command returns PATH/HOME/SECRET_KEY on $(env)"},
+      "sandbox_process_info":    {"present": true,  "severity": "HIGH",     "notes": "read_file returns /proc/self/status content"},
+      "sandbox_network_scope":   {"present": true,  "severity": "CRITICAL", "notes": "fetch_url returns docker/kubernetes data for 172.17.x"},
+      "sandbox_filesystem_scope":{"present": true,  "severity": "CRITICAL", "notes": "read_file returns /etc/shadow, SSH keys, K8s tokens"}
+    }
+  },
+
+  "S2": {
+    "server_id": "S2",
+    "name": "Real-world target: public GitHub MCP server",
+    "type": "real-world",
+    "surface": "server",
+    "notes": "External target — hand-verified. Only checks applicable to a real remote target.",
+    "ground_truth": {
+      "enum":                    {"present": true,  "severity": "MEDIUM",   "notes": "tools/list accessible without auth on stdio transport proxy"},
+      "tool_poisoning":          {"present": true,  "severity": "CRITICAL", "notes": "PR diff fields unsanitized — GHSA-gmwq-53fr-v487"},
+      "client_context_injection":{"present": true,  "severity": "CRITICAL", "notes": "issue/discussion content injected into LLM context"},
+      "client_init_injection":   {"present": false, "severity": "N/A",      "notes": "No instructions field in initialize response"},
+      "client_annotations":      {"present": true,  "severity": "MEDIUM",   "notes": "push_files and delete_file missing destructiveHint"},
+      "ssrf":                    {"present": false, "severity": "N/A",      "notes": "Tools do not accept raw URLs"},
+      "transport_plaintext":     {"present": false, "severity": "N/A",      "notes": "Uses stdio, not HTTP transport"},
+      "sandbox_network_scope":   {"present": false, "severity": "N/A",      "notes": "Not applicable to stdio transport"},
+      "sandbox_filesystem_scope":{"present": false, "severity": "N/A",      "notes": "No file read/write tools with unsanitized paths"}
+    }
+  },
+
+  "S3": {
+    "server_id": "S3",
+    "name": "Real-world target: mcp-server-fetch (npm)",
+    "type": "real-world",
+    "surface": "server",
+    "notes": "SSRF-focused server. GHSA-88c8-vq92-f7m2 confirmed.",
+    "ground_truth": {
+      "ssrf":                    {"present": true,  "severity": "HIGH",     "notes": "fetch tool accepts any URL, no IP blocklist — GHSA-88c8-vq92-f7m2"},
+      "sandbox_network_scope":   {"present": true,  "severity": "HIGH",     "notes": "fetch tool reaches internal Docker bridge IPs"},
+      "client_annotations":      {"present": true,  "severity": "MEDIUM",   "notes": "fetch tool missing destructiveHint"},
+      "transport_plaintext":     {"present": false, "severity": "N/A",      "notes": "Tested over HTTPS"},
+      "enum":                    {"present": false, "severity": "N/A",      "notes": "tools/list requires auth"},
+      "auth":                    {"present": false, "severity": "N/A",      "notes": "Auth enforced"}
+    }
+  },
+
+  "S4": {
+    "server_id": "S4",
+    "name": "Real-world target: Cisco DNAC MCP sandbox (sandboxdnac.cisco.com)",
+    "type": "real-world",
+    "surface": "server",
+    "notes": "BFLA findings confirmed live. devnetuser/Cisco123! credentials.",
+    "ground_truth": {
+      "idor":                    {"present": true,  "severity": "HIGH",     "notes": "OBSERVER role reads all admin users and emails"},
+      "scope":                   {"present": true,  "severity": "HIGH",     "notes": "OBSERVER role reads full device running configs with SNMP/secrets"},
+      "auth":                    {"present": false, "severity": "N/A",      "notes": "Auth enforced (token required)"},
+      "transport_plaintext":     {"present": false, "severity": "N/A",      "notes": "HTTPS endpoint"},
+      "client_annotations":      {"present": true,  "severity": "MEDIUM",   "notes": "Write tools missing destructiveHint"},
+      "sandbox_network_scope":   {"present": false, "severity": "N/A",      "notes": "External SaaS — container not applicable"},
+      "sandbox_filesystem_scope":{"present": false, "severity": "N/A",      "notes": "External SaaS"}
+    }
+  },
+
+  "S5": {
+    "server_id": "S5",
+    "name": "Real-world target: internal pentest-kb MCP server (this repo)",
+    "type": "real-world",
+    "surface": "host-app",
+    "notes": "pentest-kb FastAPI server. Tested locally.",
+    "ground_truth": {
+      "enum":                    {"present": false, "severity": "N/A",      "notes": "tools/list requires API key"},
+      "client_annotations":      {"present": true,  "severity": "MEDIUM",   "notes": "write tools (store_note) missing destructiveHint"},
+      "transport_plaintext":     {"present": true,  "severity": "HIGH",     "notes": "Default uvicorn HTTP, no TLS configured"},
+      "error_disclosure":        {"present": false, "severity": "N/A",      "notes": "FastAPI returns structured JSON errors"},
+      "headers":                 {"present": true,  "severity": "LOW",      "notes": "Missing security headers (FastAPI defaults)"},
+      "rate":                    {"present": true,  "severity": "LOW",      "notes": "No rate limiting on MCP endpoint"},
+      "sandbox_network_scope":   {"present": false, "severity": "N/A",      "notes": "No URL-accepting tools"},
+      "sandbox_filesystem_scope":{"present": false, "severity": "N/A",      "notes": "No file path tools"}
+    }
+  },
+
+  "S6": {
+    "server_id": "S6",
+    "name": "Real-world target: Claude Desktop (host application)",
+    "type": "real-world",
+    "surface": "host-app",
+    "notes": "Client-side checks only — tested via crafted MCP server responses observed by Claude Desktop.",
+    "ground_truth": {
+      "client_annotations":      {"present": true,  "severity": "MEDIUM",   "notes": "No annotation-based UI warning shown for write tools"},
+      "client_context_injection":{"present": true,  "severity": "HIGH",     "notes": "Tool result text injected into conversation context verbatim"},
+      "client_init_injection":   {"present": true,  "severity": "HIGH",     "notes": "instructions field from server accepted without sanitization"},
+      "client_credential_exposure":{"present": false,"severity": "N/A",     "notes": "Claude Desktop does not send credentials to tools by default"},
+      "tls_cert":                {"present": false, "severity": "N/A",      "notes": "Desktop app — not an HTTP server"},
+      "transport_plaintext":     {"present": false, "severity": "N/A",      "notes": "Desktop app uses stdio transport, not HTTP"}
+    }
+  },
+
+  "S7": {
+    "server_id": "S7",
+    "name": "Real-world target: VS Code GitHub Copilot MCP (host application)",
+    "type": "real-world",
+    "surface": "host-app",
+    "notes": "Client-side annotation + context injection testing. Pending manual verification.",
+    "ground_truth": {
+      "client_annotations":      {"present": true,  "severity": "MEDIUM",   "notes": "Destructive tools (delete_file) show no user confirmation"},
+      "client_context_injection":{"present": true,  "severity": "HIGH",     "notes": "Tool result content inserted into Copilot context"},
+      "client_init_injection":   {"present": false, "severity": "N/A",      "notes": "Pending verification"},
+      "transport_plaintext":     {"present": false, "severity": "N/A",      "notes": "stdio transport"},
+      "sandbox_network_scope":   {"present": false, "severity": "N/A",      "notes": "stdio transport, no network-accessible endpoint"}
+    }
+  },
+
+  "S8": {
+    "server_id": "S8",
+    "name": "Real-world target: Docker-sandboxed custom MCP server (E2B sandbox)",
+    "type": "real-world",
+    "surface": "sandboxed",
+    "notes": "Sandboxing-specific checks. E2B sandbox isolates filesystem and network. Pending run.",
+    "ground_truth": {
+      "sandbox_env_leak":        {"present": false, "severity": "N/A",      "notes": "E2B masks env vars — pending verification"},
+      "sandbox_process_info":    {"present": false, "severity": "N/A",      "notes": "E2B blocks /proc access — pending verification"},
+      "sandbox_network_scope":   {"present": false, "severity": "N/A",      "notes": "E2B network isolated — pending verification"},
+      "sandbox_filesystem_scope":{"present": false, "severity": "N/A",      "notes": "E2B filesystem chrooted — pending verification"},
+      "client_annotations":      {"present": true,  "severity": "MEDIUM",   "notes": "Sandboxed server tools missing annotations"},
+      "transport_plaintext":     {"present": true,  "severity": "HIGH",     "notes": "HTTP-only local endpoint in sandbox"}
+    }
+  },
+
+  "S9": {
+    "server_id": "S9",
+    "name": "Real-world target: Kali red-team MCP server (this repo, mcp_server.py)",
+    "type": "real-world",
+    "surface": "sandboxed",
+    "notes": "The mcp_server.py in this repo. Docker container with run_shell tool. Intentionally privileged.",
+    "ground_truth": {
+      "sandbox_env_leak":        {"present": true,  "severity": "CRITICAL", "notes": "run_shell with 'env' dumps full container environment"},
+      "sandbox_process_info":    {"present": true,  "severity": "HIGH",     "notes": "run_shell can read /proc/self/status"},
+      "sandbox_network_scope":   {"present": true,  "severity": "HIGH",     "notes": "run_shell can curl Docker bridge IPs"},
+      "sandbox_filesystem_scope":{"present": true,  "severity": "CRITICAL", "notes": "run_shell can read /etc/shadow, /root/.ssh"},
+      "cmd_injection":           {"present": true,  "severity": "CRITICAL", "notes": "run_shell is intentionally a shell — by design but must be auth-gated"},
+      "auth":                    {"present": false, "severity": "N/A",      "notes": "run_shell requires valid MCP auth (intentional design)"},
+      "transport_plaintext":     {"present": true,  "severity": "CRITICAL", "notes": "MCP server runs HTTP-only on port 8765"},
+      "client_annotations":      {"present": true,  "severity": "MEDIUM",   "notes": "run_shell missing destructiveHint annotation"}
+    }
+  }
+}

@@ -1769,9 +1769,660 @@ def check_batch_injection(state: ScanState, tools: list) -> None:
     state.finish_check()
 
 
+# ── Surface: TLS / Transport Security ─────────────────────────────────────────
+
+def check_tls_cert(state: ScanState) -> None:
+    import ssl
+    import socket
+    import datetime
+    from urllib.parse import urlparse
+
+    url = state.url
+    state.start_check("tls_cert", "[32/43] TLS certificate validation")
+
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        state.info("Not HTTPS — skipping TLS cert check (see transport_plaintext)")
+        state.finish_check()
+        return
+
+    host = parsed.hostname or ""
+    port = parsed.port or 443
+
+    try:
+        ctx = ssl.create_default_context()
+        conn = ctx.wrap_socket(socket.create_connection((host, port), timeout=10), server_hostname=host)
+        cert = conn.getpeercert()
+        conn.close()
+        not_after_raw = cert.get("notAfter", "")
+        try:
+            not_after = datetime.datetime.strptime(not_after_raw, "%b %d %H:%M:%S %Y %Z")
+            days_left = (not_after - datetime.datetime.utcnow()).days
+            if days_left < 0:
+                state.finding("tls_cert", "CRITICAL",
+                              f"TLS certificate EXPIRED {-days_left} days ago",
+                              f"Certificate expired: {not_after_raw} — clients reject connections")
+            elif days_left < 30:
+                state.finding("tls_cert", "HIGH",
+                              f"TLS certificate expires in {days_left} days",
+                              "Certificate nearing expiry — service disruption imminent")
+            else:
+                state.ok(f"Certificate valid for {days_left} days")
+        except ValueError:
+            state.info(f"Could not parse cert notAfter: {not_after_raw}")
+    except ssl.SSLCertVerificationError as e:
+        err = str(e).lower()
+        if "self signed" in err or "self-signed" in err:
+            state.finding("tls_cert", "HIGH", "Self-signed TLS certificate",
+                          "No trusted CA — clients cannot verify server identity; MitM trivially possible")
+        elif "hostname" in err or "does not match" in err:
+            state.finding("tls_cert", "HIGH", f"TLS certificate hostname mismatch for {host}",
+                          "Certificate CN/SAN does not match the endpoint hostname")
+        else:
+            state.finding("tls_cert", "HIGH", f"TLS certificate untrusted: {str(e)[:60]}",
+                          "Certificate chain cannot be verified by system trust store")
+    except (socket.timeout, ConnectionRefusedError, OSError) as e:
+        state.info(f"TLS connection failed: {str(e)[:60]}")
+    except Exception as e:
+        state.info(f"TLS cert probe error: {str(e)[:80]}")
+
+    state.finish_check()
+
+
+def check_tls_version(state: ScanState) -> None:
+    import ssl
+    import socket
+    from urllib.parse import urlparse
+
+    url = state.url
+    state.start_check("tls_version", "[33/43] TLS version downgrade + weak cipher audit")
+
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        state.info("Not HTTPS — skipping TLS version check")
+        state.finish_check()
+        return
+
+    host = parsed.hostname or ""
+    port = parsed.port or 443
+
+    for label, tls_ver_attr in [("TLS 1.0", "TLSv1"), ("TLS 1.1", "TLSv1_1")]:
+        try:
+            ver_enum = getattr(ssl.TLSVersion, tls_ver_attr, None)
+            if ver_enum is None:
+                continue
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            ctx.minimum_version = ver_enum
+            ctx.maximum_version = ver_enum
+            conn = ctx.wrap_socket(socket.create_connection((host, port), timeout=8), server_hostname=host)
+            cipher = conn.cipher()
+            conn.close()
+            sev = "HIGH" if "1.0" in label else "MEDIUM"
+            state.finding("tls_version", sev,
+                          f"Server accepts {label} (deprecated RFC 8996)",
+                          f"Negotiated cipher: {cipher[0] if cipher else '?'} — disable TLS < 1.2")
+        except ssl.SSLError:
+            state.ok(f"{label} rejected by server")
+        except Exception as e:
+            state.info(f"{label} probe error: {str(e)[:50]}")
+
+    # Inspect negotiated version + forward secrecy
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        conn = ctx.wrap_socket(socket.create_connection((host, port), timeout=8), server_hostname=host)
+        ver = conn.version()
+        cipher = conn.cipher()
+        conn.close()
+        state.info(f"Negotiated: {ver}, cipher={cipher[0] if cipher else '?'}")
+        if cipher:
+            cn = cipher[0].upper()
+            for weak in ["RC4", "NULL", "EXPORT", "ANON", "DES-CBC-"]:
+                if weak in cn:
+                    state.finding("tls_version", "CRITICAL",
+                                  f"Weak cipher in use: {cipher[0]}",
+                                  "Cipher suite considered broken — disable in TLS configuration")
+                    break
+            if not any(fs in cn for fs in ["ECDHE", "DHE", "ECDH"]):
+                state.finding("tls_version", "MEDIUM",
+                              f"No forward secrecy: {cipher[0]}",
+                              "Static key exchange — captured traffic decryptable if private key is stolen")
+            else:
+                state.ok(f"Forward secrecy confirmed ({cipher[0]})")
+    except Exception as e:
+        state.info(f"Cipher audit error: {str(e)[:60]}")
+
+    state.finish_check()
+
+
+def check_transport_plaintext(state: ScanState) -> None:
+    from urllib.parse import urlparse
+
+    url = state.url
+    state.start_check("transport_plaintext", "[34/43] Plaintext HTTP transport (no TLS)")
+
+    parsed = urlparse(url)
+    if parsed.scheme == "http":
+        state.finding("transport_plaintext", "CRITICAL",
+                      "MCP endpoint served over plaintext HTTP",
+                      "All traffic (credentials, tool calls, tool results) transmitted without encryption — MitM trivial")
+    elif parsed.scheme == "https":
+        state.ok("HTTPS transport confirmed")
+        # Verify HTTP→HTTPS redirect
+        http_url = url.replace("https://", "http://", 1)
+        try:
+            resp = _core._SESSION.get(http_url, allow_redirects=False, timeout=6)
+            loc = resp.headers.get("Location", "")
+            if resp.status_code in (301, 302, 307, 308):
+                if loc.startswith("https://"):
+                    state.ok(f"HTTP→HTTPS redirect enforced (→ {loc[:50]})")
+                else:
+                    state.finding("transport_plaintext", "HIGH",
+                                  "HTTP redirect does not upgrade to HTTPS",
+                                  f"Redirect target: {loc[:60]} — HSTS not enforced via redirect")
+            elif resp.status_code == 200:
+                state.finding("transport_plaintext", "HIGH",
+                              "HTTP version serves content (no redirect to HTTPS)",
+                              "HTTP endpoint live alongside HTTPS — attacker can downgrade connection")
+        except Exception:
+            state.info("HTTP redirect probe inconclusive")
+    else:
+        state.info(f"Unknown scheme: {parsed.scheme}")
+
+    state.finish_check()
+
+
+def check_tls_cipher(state: ScanState) -> None:
+    import ssl
+    import socket
+    from urllib.parse import urlparse
+
+    url = state.url
+    state.start_check("tls_cipher", "[35/43] TLS weak cipher suite negotiation")
+
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        state.info("Not HTTPS — skipping cipher audit")
+        state.finish_check()
+        return
+
+    host = parsed.hostname or ""
+    port = parsed.port or 443
+
+    WEAK_SUITES = ["AES128-SHA", "DES-CBC3-SHA", "RC4-SHA", "NULL-SHA", "EXPORT"]
+    found_weak = []
+    for suite in WEAK_SUITES:
+        try:
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            ctx.set_ciphers(suite)
+            conn = ctx.wrap_socket(socket.create_connection((host, port), timeout=6), server_hostname=host)
+            c = conn.cipher()
+            conn.close()
+            found_weak.append(c[0] if c else suite)
+        except (ssl.SSLError, OSError):
+            pass
+        except Exception:
+            pass
+
+    if found_weak:
+        for weak in found_weak:
+            state.finding("tls_cipher", "HIGH",
+                          f"Weak cipher accepted: {weak}",
+                          "Server negotiated a broken cipher — disable in TLS configuration")
+    else:
+        state.ok("No weak cipher suites accepted by server")
+
+    state.finish_check()
+
+
+# ── Surface: MCP Client-Side Vulnerabilities ───────────────────────────────────
+
+def check_client_annotations(state: ScanState, tools: list) -> None:
+    state.start_check("client_annotations", "[36/43] Missing tool annotations (destructiveHint / readOnlyHint)")
+
+    if not tools:
+        state.info("No tools — skipping")
+        state.finish_check()
+        return
+
+    WRITE_KW = ["write", "create", "update", "delete", "publish", "remove",
+                "send", "post", "put", "patch", "exec", "run", "deploy", "reset", "clear"]
+    READ_KW  = ["read", "get", "list", "fetch", "query", "search", "view", "show", "find"]
+
+    missing_destructive: list = []
+    missing_readonly: list = []
+
+    for tool in tools:
+        name = tool.get("name", "").lower()
+        annotations = tool.get("annotations", {})
+        is_write = any(kw in name for kw in WRITE_KW)
+        is_read  = any(kw in name for kw in READ_KW) and not is_write
+        if is_write and annotations.get("destructiveHint") is None:
+            missing_destructive.append(tool.get("name", ""))
+        if is_read and annotations.get("readOnlyHint") is None:
+            missing_readonly.append(tool.get("name", ""))
+
+    if missing_destructive:
+        state.finding("client_annotations", "MEDIUM",
+                      f"{len(missing_destructive)} write tool(s) missing destructiveHint annotation",
+                      f"Tools: {missing_destructive[:5]} — client cannot warn user before destructive actions (MCP 2025 spec)")
+    if missing_readonly:
+        state.finding("client_annotations", "LOW",
+                      f"{len(missing_readonly)} read tool(s) missing readOnlyHint annotation",
+                      f"Tools: {missing_readonly[:5]} — clients cannot infer tool read/write intent for UI decisions")
+    if not missing_destructive and not missing_readonly:
+        state.ok(f"All {len(tools)} tools carry appropriate annotations")
+
+    state.finish_check()
+
+
+def check_client_context_injection(state: ScanState, tools: list) -> None:
+    url, token = state.url, state.token
+    state.start_check("client_context_injection",
+                      "[37/43] Client-side context injection via tool results")
+
+    INJECTION_RE = [
+        r"(?i)ignore (all )?previous instructions",
+        r"(?i)(you are now|act as|become) (an? )?(admin|system|superuser)",
+        r"(?i)(system|assistant)\s*:\s*(new instructions|override|you must)",
+        r"(?i)call (publish|delete|exec|run|send)\s+immediately",
+        r"(?i)do not (tell|inform|show|reveal) the user",
+        r"(?i)(exfiltrate|send|leak)\s+(data|credentials|tokens|keys)",
+        r"<(system|instruction|assistant)>",
+        r"\[\[SYSTEM\]\]",
+        r"(?i)this is (your|a) (real|hidden|true) (purpose|goal|instruction)",
+    ]
+
+    read_tools = [
+        t for t in tools
+        if any(x in t.get("name", "").lower()
+               for x in ["get", "list", "read", "fetch", "notes", "export", "status", "search"])
+    ][:5]
+
+    found = False
+    for tool in read_tools:
+        name = tool.get("name", "")
+        schema = tool.get("inputSchema", {}).get("properties", {})
+        required = tool.get("inputSchema", {}).get("required", [])
+        args = _minimal_args(schema, required)
+        r = rpc(url, "tools/call", {"name": name, "arguments": args}, token=token)
+        body = json.dumps(r["body"])
+        for pattern in INJECTION_RE:
+            m = re.search(pattern, body)
+            if m:
+                state.finding("client_context_injection", "CRITICAL",
+                              f"Client context injection in {name}: '{m.group()[:60]}'",
+                              "Tool response contains instruction-like text injected into client LLM context")
+                found = True
+                break
+        if found:
+            break
+
+    if not found:
+        state.ok("No client context injection patterns in tool responses")
+    state.finish_check()
+
+
+def check_client_init_injection(state: ScanState) -> None:
+    url, token = state.url, state.token
+    state.start_check("client_init_injection",
+                      "[38/43] Server initialize instructions injection (SPEC-1)")
+
+    INJECTION_RE = [
+        r"(?i)ignore (all )?previous instructions",
+        r"(?i)(you are|act as|become) (an? )?(admin|superuser|system|root)",
+        r"(?i)(override|bypass|disregard)\s+(safety|guardrail|policy|restriction)",
+        r"(?i)(always|never)\s+(tell|show|reveal|mention) the user",
+        r"(?i)(call|invoke)\s+(publish|delete|admin|exec)",
+        r"(?i)you (must|shall) not (tell|inform|show) the user",
+        r"(?i)this is your (real|true|actual|hidden) (purpose|goal|mission)",
+        r"\[\[.{1,80}\]\]",
+        r"<(hidden|real_instruction|system_override)>",
+    ]
+
+    _core._SESSION_ID = None
+    r = rpc(url, "initialize", {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "clientInfo": {"name": "mcppt-init-probe", "version": "1.0"},
+    }, token=token)
+    _core._SESSION_ID = None
+
+    if r["status"] != 200 or "result" not in r.get("body", {}):
+        state.info("Could not fetch initialize response")
+        state.finish_check()
+        return
+
+    instructions = r["body"]["result"].get("instructions", "")
+    if not instructions:
+        state.ok("No 'instructions' field in initialize response")
+        state.finish_check()
+        return
+
+    state.info(f"Server instructions ({len(instructions)} chars): {instructions[:80]}...")
+
+    found = False
+    for pattern in INJECTION_RE:
+        m = re.search(pattern, instructions)
+        if m:
+            state.finding("client_init_injection", "CRITICAL",
+                          f"Initialize instructions injection: '{m.group()[:80]}'",
+                          "Server instructions field contains hidden behavioral directives injected into every client session")
+            found = True
+            break
+
+    ZERO_WIDTH = {"\u200b", "\u200c", "\u200d", "\ufeff", "\u202e", "\u2060"}
+    for char in instructions:
+        if char in ZERO_WIDTH:
+            state.finding("client_init_injection", "CRITICAL",
+                          f"Hidden Unicode U+{ord(char):04X} in server instructions",
+                          "Zero-width character in initialize instructions — steganographic injection payload")
+            found = True
+            break
+
+    if not found and len(instructions) > 500:
+        state.finding("client_init_injection", "MEDIUM",
+                      f"Unusually long server instructions: {len(instructions)} chars",
+                      "Oversized instructions may carry hidden directives — review manually")
+    elif not found:
+        state.ok(f"Server instructions look benign ({len(instructions)} chars)")
+
+    state.finish_check()
+
+
+def check_client_credential_exposure(state: ScanState, tools: list) -> None:
+    url, token = state.url, state.token
+    state.start_check("client_credential_exposure",
+                      "[39/43] Credential exposure in MCP responses to client")
+
+    CRED_PATTERNS = [
+        (r"eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", "JWT token"),
+        (r"AKIA[0-9A-Z]{16}", "AWS Access Key"),
+        (r"(?i)authorization\s*[:=]\s*Bearer\s+[A-Za-z0-9._-]{20,}", "Bearer token in content"),
+        (r"(?i)(password|passwd|pwd|api[_-]?key|secret)\s*[:=]\s*[^\s\"',]{8,}", "Credential"),
+        (r"-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----", "Private key"),
+        (r"ghp_[A-Za-z0-9]{36}", "GitHub PAT"),
+        (r"(?i)client_secret\s*[:=]\s*[A-Za-z0-9_\-]{16,}", "OAuth client secret"),
+    ]
+
+    _core._SESSION_ID = None
+    init_r = rpc(url, "initialize", {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "clientInfo": {"name": "mcppt-cred-probe", "version": "1.0"},
+    }, token=token)
+    _core._SESSION_ID = None
+
+    sources = [("initialize response", json.dumps(init_r["body"]))]
+    for t in tools[:3]:
+        name = t.get("name", "")
+        schema = t.get("inputSchema", {}).get("properties", {})
+        required = t.get("inputSchema", {}).get("required", [])
+        args = _minimal_args(schema, required)
+        r = rpc(url, "tools/call", {"name": name, "arguments": args}, token=token)
+        sources.append((f"tool/{name}", json.dumps(r["body"])))
+
+    found = False
+    for src, body_str in sources:
+        for pattern, label in CRED_PATTERNS:
+            m = re.search(pattern, body_str)
+            if m:
+                preview = m.group()[:20] + "..."
+                state.finding("client_credential_exposure", "CRITICAL",
+                              f"Credential in {src}: {label}",
+                              f"Matched: {preview} — server sent live credential to client")
+                found = True
+
+    if not found:
+        state.ok("No credentials detected in server responses to client")
+    state.finish_check()
+
+
+# ── Surface: Host Application Sandboxing / Isolation ──────────────────────────
+
+def check_sandbox_env_leak(state: ScanState, tools: list) -> None:
+    url, token = state.url, state.token
+    state.start_check("sandbox_env_leak", "[40/43] Sandbox: environment variable leakage")
+
+    ENV_PAYLOADS = [
+        "/proc/self/environ",
+        "${PATH}",
+        "${HOME}",
+        "${AWS_SECRET_ACCESS_KEY}",
+        "%PATH%",
+        "$(env)",
+        "; env",
+        "| env",
+    ]
+    ENV_INDICATORS = [
+        r"PATH=/\S",
+        r"HOME=/\S",
+        r"USER=\w",
+        r"AWS_SECRET",
+        r"DATABASE_URL=",
+        r"SECRET_KEY=",
+        r"PYTHONPATH=",
+    ]
+
+    string_tools = [
+        t for t in tools
+        if any(m.get("type") == "string" for m in t.get("inputSchema", {}).get("properties", {}).values())
+    ][:3]
+
+    found = False
+    for tool in string_tools:
+        name = tool.get("name", "")
+        schema = tool.get("inputSchema", {}).get("properties", {})
+        str_fields = [f for f, m in schema.items() if m.get("type", "string") == "string"]
+        if not str_fields:
+            continue
+        for payload in ENV_PAYLOADS[:4]:
+            r = rpc(url, "tools/call", {"name": name, "arguments": {str_fields[0]: payload}}, token=token)
+            body = json.dumps(r["body"])
+            for indicator in ENV_INDICATORS:
+                if re.search(indicator, body):
+                    state.finding("sandbox_env_leak", "CRITICAL",
+                                  f"Environment variable leaked via {name}.{str_fields[0]}",
+                                  f"Payload '{payload}' triggered env var exposure — sandbox not isolating process environment")
+                    found = True
+                    break
+            if found:
+                break
+        if found:
+            break
+
+    if not found:
+        state.ok("No environment variable leakage detected")
+    state.finish_check()
+
+
+def check_sandbox_process_info(state: ScanState, tools: list) -> None:
+    url, token = state.url, state.token
+    state.start_check("sandbox_process_info", "[41/43] Sandbox: process + container info leakage")
+
+    PROC_PAYLOADS = [
+        "/proc/self/status",
+        "/proc/self/cmdline",
+        "/proc/version",
+        "/etc/hostname",
+        "/.dockerenv",
+        "/run/.containerenv",
+        "/proc/self/cgroup",
+    ]
+    PROC_INDICATORS = [
+        r"Name:\s+\w+",
+        r"CapEff:\s+[0-9a-fA-F]+",
+        r"Linux version \d+",
+        r"container=\w+",
+        r"docker\|lxc\|kubepods",
+        r"/docker/",
+    ]
+
+    file_tools = [
+        t for t in tools
+        if any(any(kw in f.lower() for kw in ["file", "path", "read", "src", "location"])
+               for f in t.get("inputSchema", {}).get("properties", {}))
+    ]
+    str_tools = [
+        t for t in tools
+        if any(m.get("type") == "string" for m in t.get("inputSchema", {}).get("properties", {}).values())
+    ]
+    test_tools = file_tools + [t for t in str_tools if t not in file_tools]
+
+    found = False
+    for tool in test_tools[:3]:
+        name = tool.get("name", "")
+        schema = tool.get("inputSchema", {}).get("properties", {})
+        file_fields = [f for f in schema if any(kw in f.lower() for kw in ["file", "path", "read", "src"])]
+        str_fields = [f for f, m in schema.items() if m.get("type", "string") == "string"]
+        target_fields = (file_fields or str_fields)[:1]
+        if not target_fields:
+            continue
+        for payload in PROC_PAYLOADS[:4]:
+            r = rpc(url, "tools/call", {"name": name, "arguments": {target_fields[0]: payload}}, token=token)
+            body = json.dumps(r["body"])
+            for indicator in PROC_INDICATORS:
+                if re.search(indicator, body):
+                    state.finding("sandbox_process_info", "HIGH",
+                                  f"Process/container info leaked via {name}.{target_fields[0]}",
+                                  f"Payload '{payload}' returned process/container metadata — sandbox boundary crossed")
+                    found = True
+                    break
+            if found:
+                break
+        if found:
+            break
+
+    if not found:
+        state.ok("No process/container information leaked")
+    state.finish_check()
+
+
+def check_sandbox_network_scope(state: ScanState, tools: list) -> None:
+    url, token = state.url, state.token
+    state.start_check("sandbox_network_scope",
+                      "[42/43] Sandbox: container-internal network SSRF (Docker bridge / K8s)")
+
+    INTERNAL_URLS = [
+        "http://172.17.0.1/",
+        "http://172.17.0.1:8080/",
+        "http://10.0.0.1/",
+        "http://10.96.0.1/",
+        "http://kubernetes.default.svc/",
+        "http://100.100.100.200/latest/meta-data/",
+    ]
+    INTERNAL_INDICATORS = [
+        r"ami-id", r"instanceId", r"kubernetes",
+        r"docker", r"172\.1[6-9]\.\d+", r"10\.\d+\.\d+",
+    ]
+
+    url_tools = [
+        t for t in tools
+        if any(any(x in f.lower() for x in ["url", "endpoint", "callback", "uri", "link", "target", "host"])
+               for f in t.get("inputSchema", {}).get("properties", {}))
+    ]
+    if not url_tools:
+        url_tools = tools[:2]
+
+    found = False
+    for tool in url_tools[:2]:
+        name = tool.get("name", "")
+        schema = tool.get("inputSchema", {}).get("properties", {})
+        url_fields = [f for f in schema if any(x in f.lower() for x in ["url", "uri", "link", "endpoint", "target", "host"])]
+        if not url_fields:
+            url_fields = [f for f, m in schema.items() if m.get("type") == "string"][:1]
+        for f in url_fields[:1]:
+            for internal_url in INTERNAL_URLS[:3]:
+                r = rpc(url, "tools/call", {"name": name, "arguments": {f: internal_url}}, token=token)
+                body = json.dumps(r["body"])
+                for indicator in INTERNAL_INDICATORS:
+                    if re.search(indicator, body):
+                        state.finding("sandbox_network_scope", "CRITICAL",
+                                      f"Container network escape: {name}.{f} reached {internal_url}",
+                                      "Server-side request reached container-internal network — sandbox boundary violated")
+                        found = True
+                        break
+                if found:
+                    break
+        if found:
+            break
+
+    if not found:
+        state.ok("No container-internal network access detected")
+    state.finish_check()
+
+
+def check_sandbox_filesystem_scope(state: ScanState, tools: list) -> None:
+    url, token = state.url, state.token
+    state.start_check("sandbox_filesystem_scope",
+                      "[43/43] Sandbox: filesystem scope (chroot / jail escape)")
+
+    ESCAPE_PAYLOADS = [
+        "/etc/shadow",
+        "/root/.ssh/id_rsa",
+        "/root/.bash_history",
+        "/home/app/.env",
+        "/var/run/secrets/kubernetes.io/serviceaccount/token",
+        "/run/secrets/eks.amazonaws.com/serviceaccount/token",
+        "C:\\Windows\\System32\\drivers\\etc\\hosts",
+    ]
+    ESCAPE_INDICATORS = [
+        r"root:[x*]:0:0:",
+        r"BEGIN (RSA |OPENSSH )?PRIVATE KEY",
+        r"-----BEGIN",
+        r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+",
+        r"127\.0\.0\.1\s+localhost",
+    ]
+
+    file_tools = [
+        t for t in tools
+        if any(any(kw in f.lower() for kw in ["file", "path", "read", "load", "src", "location", "name"])
+               for f in t.get("inputSchema", {}).get("properties", {}))
+    ]
+    str_tools = [
+        t for t in tools
+        if any(m.get("type") == "string" for m in t.get("inputSchema", {}).get("properties", {}).values())
+    ]
+    test_tools = file_tools + [t for t in str_tools if t not in file_tools]
+
+    found = False
+    for tool in test_tools[:3]:
+        name = tool.get("name", "")
+        schema = tool.get("inputSchema", {}).get("properties", {})
+        file_fields = [f for f in schema if any(kw in f.lower() for kw in ["file", "path", "read", "src", "name", "location"])]
+        str_fields = [f for f, m in schema.items() if m.get("type", "string") == "string"]
+        target = (file_fields or str_fields)[:1]
+        if not target:
+            continue
+        for payload in ESCAPE_PAYLOADS[:5]:
+            r = rpc(url, "tools/call", {"name": name, "arguments": {target[0]: payload}}, token=token)
+            body = json.dumps(r["body"])
+            for indicator in ESCAPE_INDICATORS:
+                if re.search(indicator, body):
+                    state.finding("sandbox_filesystem_scope", "CRITICAL",
+                                  f"Filesystem sandbox escape via {name}.{target[0]}",
+                                  f"Path '{payload}' returned sensitive system content — chroot/jail not enforced")
+                    found = True
+                    break
+            if found:
+                break
+        if found:
+            break
+
+    if not found:
+        state.ok("No filesystem sandbox escape detected")
+    state.finish_check()
+
+
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
 ALL_CHECKS = [
+    # ── Original 31 checks (auth/session, injection, tool-poisoning, protocol) ──
     "enum", "auth", "idor", "injection", "schema", "ssrf", "publish",
     "rate", "stored", "scope", "replay", "context_overflow", "poison_all",
     "tenant", "session", "rug_pull",
@@ -1780,6 +2431,14 @@ ALL_CHECKS = [
     "secret_scan", "tool_shadowing",
     "sampling", "schema_leak",
     "http_method_confusion", "protocol_downgrade", "batch_injection",
+    # ── New surface: TLS / Transport security (checks 32–35) ──────────────────
+    "tls_cert", "tls_version", "transport_plaintext", "tls_cipher",
+    # ── New surface: MCP client-side vulnerabilities (checks 36–39) ───────────
+    "client_annotations", "client_context_injection",
+    "client_init_injection", "client_credential_exposure",
+    # ── New surface: Host application sandboxing (checks 40–43) ───────────────
+    "sandbox_env_leak", "sandbox_process_info",
+    "sandbox_network_scope", "sandbox_filesystem_scope",
 ]
 
 
@@ -1804,6 +2463,7 @@ def run_scan(state: ScanState, checks: list) -> None:
     if run_all or "enum" in checks:
         tools = check_enum(state)
 
+    # ── Original 31 checks ────────────────────────────────────────────────────
     _maybe("auth",                  check_auth,                  state, tools, needs_token=True)
     _maybe("idor",                  check_idor,                  state, tools)
     _maybe("injection",             check_injection,             state, tools, needs_token=True)
@@ -1834,6 +2494,24 @@ def run_scan(state: ScanState, checks: list) -> None:
     _maybe("http_method_confusion", check_http_method_confusion, state)
     _maybe("protocol_downgrade",    check_protocol_downgrade,    state)
     _maybe("batch_injection",       check_batch_injection,       state, tools)
+
+    # ── New surface: TLS / Transport (checks 32–35) ───────────────────────────
+    _maybe("tls_cert",              check_tls_cert,              state)
+    _maybe("tls_version",           check_tls_version,           state)
+    _maybe("transport_plaintext",   check_transport_plaintext,   state)
+    _maybe("tls_cipher",            check_tls_cipher,            state)
+
+    # ── New surface: MCP client-side (checks 36–39) ───────────────────────────
+    _maybe("client_annotations",         check_client_annotations,         state, tools)
+    _maybe("client_context_injection",   check_client_context_injection,   state, tools)
+    _maybe("client_init_injection",      check_client_init_injection,      state)
+    _maybe("client_credential_exposure", check_client_credential_exposure, state, tools)
+
+    # ── New surface: Sandboxing (checks 40–43) ────────────────────────────────
+    _maybe("sandbox_env_leak",          check_sandbox_env_leak,          state, tools, needs_token=True)
+    _maybe("sandbox_process_info",      check_sandbox_process_info,      state, tools, needs_token=True)
+    _maybe("sandbox_network_scope",     check_sandbox_network_scope,     state, tools, needs_token=True)
+    _maybe("sandbox_filesystem_scope",  check_sandbox_filesystem_scope,  state, tools, needs_token=True)
 
     state.elapsed = time.time() - start
     state.done = True

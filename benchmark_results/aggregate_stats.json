@@ -1,0 +1,87 @@
+{
+  "servers_evaluated": [
+    "S1"
+  ],
+  "overall": {
+    "TP": 38,
+    "FP": 0,
+    "FN": 0,
+    "TN": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "fpr": null,
+    "f1": 1.0
+  },
+  "per_surface": {
+    "auth_session": {
+      "TP": 8,
+      "FP": 0,
+      "FN": 0,
+      "TN": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "fpr": null,
+      "f1": 1.0
+    },
+    "injection": {
+      "TP": 8,
+      "FP": 0,
+      "FN": 0,
+      "TN": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "fpr": null,
+      "f1": 1.0
+    },
+    "tool_poisoning": {
+      "TP": 7,
+      "FP": 0,
+      "FN": 0,
+      "TN": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "fpr": null,
+      "f1": 1.0
+    },
+    "protocol": {
+      "TP": 7,
+      "FP": 0,
+      "FN": 0,
+      "TN": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "fpr": null,
+      "f1": 1.0
+    },
+    "tls_transport": {
+      "TP": 1,
+      "FP": 0,
+      "FN": 0,
+      "TN": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "fpr": null,
+      "f1": 1.0
+    },
+    "client_side": {
+      "TP": 4,
+      "FP": 0,
+      "FN": 0,
+      "TN": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "fpr": null,
+      "f1": 1.0
+    },
+    "sandboxing": {
+      "TP": 4,
+      "FP": 0,
+      "FN": 0,
+      "TN": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "fpr": null,
+      "f1": 1.0
+    }
+  }
+}
